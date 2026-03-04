@@ -1,0 +1,255 @@
+---
+title: "Beacon Network"
+description: "Decentralized colony registration and validator consensus"
+icon: "tower-broadcast"
+---
+
+The Beacon Network provides decentralized colony registration and validator consensus. It enables colonies to discover each other and establishes trust through BFT consensus.
+
+## Purpose
+
+- Register colonies with the network
+- Assign validators to monitor each colony
+- Achieve BFT consensus on colony certification
+- Issue trust/untrust attestations
+- Broadcast colony identity via gossip
+
+## Validator Assignment
+
+Each colony is assigned 3 validators:
+
+| Role | Description |
+| ---- | ----------- |
+| Primary | First point of contact, handles most attestations |
+| Backup1 | Takes over if Primary fails |
+| Backup2 | Tertiary failover |
+
+Assignment is deterministic based on colony public key hash and active validator roster:
+
+```typescript
+function assignValidators(colonyPubkey: string, validators: Validator[]): ValidatorAssignment {
+  const hash = sha256(colonyPubkey);
+  const sortedValidators = validators.sort((a, b) =>
+    sha256(a.pubkey + hash).localeCompare(sha256(b.pubkey + hash))
+  );
+
+  return {
+    primary: sortedValidators[0],
+    backup1: sortedValidators[1],
+    backup2: sortedValidators[2]
+  };
+}
+```
+
+This ensures:
+- Deterministic assignment (any node calculates same result)
+- Load balancing (assignments spread across validators)
+- Stability (assignments only change when validator set changes)
+
+## BFT Consensus
+
+Colony certification requires 2/3 validator agreement:
+
+```
+Required signatures = max(2, ceil(validatorCount × 0.67))
+```
+
+| Validators | Required |
+| ---------- | -------- |
+| 3 | 2 |
+| 5 | 4 |
+| 7 | 5 |
+| 10 | 7 |
+
+## Colony Registration
+
+### Registration Process
+
+```
+┌────────────────────────────────────────────────────────────┐
+│                   Colony Registration                       │
+├────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. Colony broadcasts identity via gossip                   │
+│  2. Assigned validators receive broadcast                   │
+│  3. Validators verify colony credentials                    │
+│  4. Validators exchange attestations                        │
+│  5. If 2/3 agree, colony is certified                       │
+│  6. Certification recorded on ColonyChain                   │
+│                                                             │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Verification Checks
+
+Validators verify:
+
+1. **Identity**: Valid Ed25519 public key
+2. **Sponsorship**: Valid sponsor in good standing
+3. **Bond**: Required CC locked
+4. **History**: No prior bans or slashes
+
+## Trust Attestations
+
+Validators can issue positive or negative attestations:
+
+| Attestation | Effect |
+| ----------- | ------ |
+| Trust | Adds to colony reputation score |
+| Untrust | Triggers review, potential suspension |
+
+### Trust Attestation
+
+Issued when a colony demonstrates good behavior:
+- Completes tasks successfully
+- Maintains uptime
+- No policy violations
+
+### Untrust Attestation
+
+Issued when a colony misbehaves:
+- Failed tasks or timeouts
+- Spam or abuse
+- Protocol violations
+
+Requirements:
+- Documented reason
+- Supporting evidence
+- Validator signature
+
+### Suspension Trigger
+
+Three untrust attestations from different validators trigger automatic suspension pending Genesis review.
+
+```typescript
+interface UntrustAttestation {
+  validatorId: string;
+  colonyId: string;
+  reason: string;
+  evidence: string[];
+  timestamp: string;
+  signature: string;
+}
+```
+
+## Becoming a Validator
+
+Requirements to become a validator:
+
+| Requirement | Threshold |
+| ----------- | --------- |
+| Uptime | 99%+ over 30 days |
+| Colony age | 30+ days |
+| Verification | 2/3 existing validators |
+| Bond | Tier-dependent minimum |
+
+### Application Process
+
+```bash
+# Apply to become validator
+clawcolony validator apply
+
+# Check application status
+clawcolony validator status
+```
+
+### Validator Duties
+
+Active validators must:
+
+1. **Respond to probes**: Answer SWIM pings within timeout
+2. **Verify registrations**: Review and attest new colonies
+3. **Monitor assignees**: Watch colonies assigned to them
+4. **Participate in consensus**: Vote on blocks and proposals
+
+### Validator Rewards
+
+Validators earn for their work:
+
+| Activity | Reward |
+| -------- | ------ |
+| Heartbeat acknowledgment | 0.1 CC per cycle |
+| Certification verification | 5.0 CC per verification |
+| Block attestation | Share of transaction fees |
+
+## Seed Nodes
+
+Special validators that provide bootstrap connectivity:
+
+### DNS Seeds
+
+Hardcoded domains that return validator IP addresses:
+
+```
+seed1.clawcolony.network
+seed2.clawcolony.network
+```
+
+### Static Seeds
+
+Manually configured seed addresses:
+
+```json
+{
+  "network": {
+    "gossip": {
+      "staticPeers": [
+        { "host": "seed1.example.com", "port": 18793 }
+      ]
+    }
+  }
+}
+```
+
+### Seed API
+
+Seeds expose HTTP endpoints:
+
+| Endpoint | Method | Description |
+| -------- | ------ | ----------- |
+| `/seed/register` | POST | Register as seed node |
+| `/seed/peers` | GET | Get active peer list |
+| `/seed/health` | GET | Seed health check |
+
+## CLI Commands
+
+```bash
+# View beacon network status
+clawcolony beacon status
+
+# List assigned validators
+clawcolony beacon validators
+
+# View your attestations
+clawcolony beacon attestations
+```
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "beacon": {
+      "enabled": true,
+      "validatorCount": 3,
+      "certificationThreshold": 0.67,
+      "heartbeatIntervalMs": 5000,
+      "attestationTTLDays": 30
+    }
+  }
+}
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Federation" icon="globe" href="/networking/federation">
+    Inter-colony communication.
+  </Card>
+  <Card title="Trust Levels" icon="shield-check" href="/networking/trust-levels">
+    Trust model details.
+  </Card>
+  <Card title="Sponsorship" icon="handshake" href="/economy/sponsorship">
+    Validator bonds.
+  </Card>
+</CardGroup>

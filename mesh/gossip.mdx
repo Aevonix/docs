@@ -1,0 +1,229 @@
+---
+title: "SWIM Gossip Protocol"
+description: "Scalable membership protocol for node discovery and failure detection"
+icon: "comments"
+---
+
+Colony uses SWIM (Scalable Weakly-consistent Infection-style Membership) for node discovery and failure detection. SWIM provides O(1) message complexity per protocol period with bounded false positive rates.
+
+## Why SWIM
+
+- **O(1) message complexity**: Per protocol period, constant messages regardless of cluster size
+- **Bounded false positive rate**: Configurable detection accuracy
+- **NAT traversal**: Works across NAT with relay support
+- **Proven at scale**: Used by HashiCorp Serf and Consul
+
+## Protocol Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SWIM Protocol                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Every protocol period (1 second):                          │
+│                                                              │
+│  1. Select random ALIVE member                              │
+│  2. Send PING                                                │
+│  3. Wait 200ms for ACK                                      │
+│  4. If no ACK:                                               │
+│     - Select 3 random members                               │
+│     - Send PING_REQ (ask them to ping target)              │
+│     - Wait 500ms                                             │
+│  5. If still no ACK: mark target SUSPECT                    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Membership States
+
+```
+        ┌──────────────────────────────────────┐
+        │                                      │
+        ▼                                      │
+    ┌───────┐   missed pings   ┌─────────┐    │ ack received
+    │ ALIVE │ ───────────────► │ SUSPECT │ ───┘
+    └───┬───┘                  └────┬────┘
+        │                           │
+        │ leave msg                 │ timeout (30s)
+        │                           │
+        ▼                           ▼
+    ┌───────┐                  ┌────────┐
+    │ LEFT  │                  │  DEAD  │
+    └───────┘                  └────────┘
+```
+
+State transitions:
+
+| From | To | Trigger |
+| ---- | -- | ------- |
+| ALIVE | SUSPECT | 5 seconds without ACK |
+| SUSPECT | ALIVE | ACK received with higher incarnation |
+| SUSPECT | DEAD | 30 seconds in suspect state |
+| ALIVE | LEFT | LEAVE message received |
+| * | ALIVE | JOIN with valid invite |
+
+## Message Types
+
+```typescript
+enum SwimMessageType {
+  PING = 0x01,      // Direct probe
+  PING_REQ = 0x02,  // Indirect probe request
+  ACK = 0x03,       // Probe acknowledgment
+  NACK = 0x04,      // Negative acknowledgment
+  SYNC = 0x05,      // Full state sync request
+  SYNC_RESP = 0x06, // Full state sync response
+  JOIN = 0x07,      // Join request
+  JOIN_ACK = 0x08,  // Join acknowledgment
+  LEAVE = 0x09,     // Graceful leave announcement
+}
+```
+
+## Failure Detection
+
+### Direct Probe
+
+1. Node A pings Node B
+2. Node B responds with ACK
+3. If ACK received within 200ms, Node B is ALIVE
+
+### Indirect Probe
+
+If direct probe fails:
+
+1. Node A asks Nodes C, D, E to ping Node B
+2. Any of them can report back
+3. If any reports ACK, Node B is ALIVE
+4. If all fail, Node B enters SUSPECT state
+
+### Suspect Confirmation
+
+A SUSPECT node is not immediately declared DEAD:
+
+1. 30-second grace period
+2. Node can refute by broadcasting ALIVE with higher incarnation
+3. If no refutation, declared DEAD
+
+## Dissemination
+
+Membership updates propagate via piggyback on protocol messages:
+
+- **Join announcements**: New node joined
+- **Leave announcements**: Node gracefully departed
+- **Suspect notifications**: Node may be failing
+- **Death declarations**: Node confirmed dead
+
+No dedicated broadcast channel. Updates spread infection-style through normal protocol traffic.
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "network": {
+      "gossip": {
+        "enabled": true,
+        "port": 18793,
+        "protocolPeriodMs": 1000,
+        "pingTimeoutMs": 200,
+        "indirectPingTimeoutMs": 500,
+        "suspicionTimeoutMs": 5000,
+        "deathTimeoutMs": 30000,
+        "indirectPingCount": 3,
+        "maxPiggybackBytes": 3072
+      }
+    }
+  }
+}
+```
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `protocolPeriodMs` | 1000 | How often to probe (ms) |
+| `pingTimeoutMs` | 200 | Direct ping timeout (ms) |
+| `indirectPingTimeoutMs` | 500 | Indirect ping timeout (ms) |
+| `suspicionTimeoutMs` | 5000 | Time before entering suspect state |
+| `deathTimeoutMs` | 30000 | Time in suspect before death |
+| `indirectPingCount` | 3 | Number of indirect probers |
+| `maxPiggybackBytes` | 3072 | Max piggybacked data per message |
+
+## Port Requirements
+
+| Port | Protocol | Purpose |
+| ---- | -------- | ------- |
+| 18791 | TCP | Gateway HTTP API |
+| 18792 | TCP | WebSocket connections |
+| 18793 | UDP | SWIM gossip |
+
+## NAT Traversal
+
+For nodes behind NAT:
+
+1. Configure static seed peers with public addresses
+2. Gossip layer routes through seeds
+3. Seeds relay packets to NAT'd peers
+
+```json
+{
+  "network": {
+    "gossip": {
+      "staticPeers": [
+        { "host": "seed1.example.com", "port": 18793 },
+        { "host": "seed2.example.com", "port": 18793 }
+      ]
+    }
+  }
+}
+```
+
+## Firewall Configuration
+
+```bash
+# Allow gossip UDP
+sudo ufw allow 18793/udp
+
+# Allow gateway TCP
+sudo ufw allow 18791/tcp
+sudo ufw allow 18792/tcp
+```
+
+## Anti-Entropy
+
+Every 30 seconds, exchange full membership state with a random peer:
+
+1. Select random ALIVE peer
+2. Send SYNC message with local membership hash
+3. If peer's hash differs, peer responds with full member list
+4. Merge received list with local list using incarnation comparison
+
+This ensures eventual consistency even if dissemination misses some nodes.
+
+## Incarnation Numbers
+
+Incarnation numbers prevent stale state from overwriting current state:
+
+- Each node maintains a local incarnation number (starts at 0)
+- Incremented when: node restarts, node refutes SUSPECT state
+- Messages about a node only accepted if incarnation >= local known incarnation
+- Higher incarnation always wins regardless of state
+
+Refutation:
+```typescript
+function handleSuspectMessage(aboutNode: string, reportedIncarnation: number): void {
+  if (aboutNode === localNodeId) {
+    // Someone thinks we are suspect. Refute with higher incarnation.
+    localIncarnation = Math.max(localIncarnation, reportedIncarnation) + 1;
+    broadcast({ type: "ALIVE", incarnation: localIncarnation });
+  }
+}
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Colony Mesh" icon="network-wired" href="/mesh/overview">
+    Mesh architecture overview.
+  </Card>
+  <Card title="Leader Election" icon="crown" href="/mesh/election">
+    How election uses SWIM for failure detection.
+  </Card>
+</CardGroup>

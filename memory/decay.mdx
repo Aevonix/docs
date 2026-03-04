@@ -1,0 +1,221 @@
+---
+title: "Ebbinghaus Decay Model"
+description: "Memory strength decay based on the Ebbinghaus forgetting curve"
+icon: "clock"
+---
+
+ClawColony uses the Ebbinghaus forgetting curve to model memory decay. Memories lose strength over time unless recalled, simulating how human memory works.
+
+## The Formula
+
+```
+strength = importance × e^(-baseLambda × daysSinceCreation) × (1 + recallCount × boostFactor)
+```
+
+Where:
+- `importance`: Base importance of the memory (0.0 to 1.0)
+- `baseLambda`: Decay rate constant (default: 0.16)
+- `daysSinceCreation`: Days since memory was created
+- `recallCount`: Number of times memory was recalled
+- `boostFactor`: How much each recall boosts strength (default: 0.2)
+
+## Decay Visualization
+
+```
+Strength
+1.0 │ ▓▓▓▓
+    │    ▓▓▓
+    │       ▓▓
+    │         ▓▓
+    │           ▓▓
+    │             ▓
+0.5 │              ▓
+    │               ▓
+    │                ▓
+    │                 ▓
+    │                  ▓▓▓▓▓▓▓
+0.0 └──────────────────────────►
+    0   10   20   30   40   50  Days
+```
+
+With default parameters:
+- Day 0: 100% strength
+- Day 7: ~68% strength
+- Day 14: ~46% strength
+- Day 30: ~21% strength
+
+## Recall Boost
+
+Each time a memory is recalled, its strength increases:
+
+```
+Base strength: 0.5
+After 1 recall: 0.5 × (1 + 1 × 0.2) = 0.6
+After 2 recalls: 0.5 × (1 + 2 × 0.2) = 0.7
+After 5 recalls: 0.5 × (1 + 5 × 0.2) = 1.0 (capped)
+```
+
+This models the "use it or lose it" principle: frequently accessed memories stay strong.
+
+## Importance Assignment
+
+Memories are assigned importance based on type:
+
+| Type | Default Importance |
+| ---- | ------------------ |
+| Preferences | 0.9 |
+| Decisions | 0.85 |
+| Relationships | 0.85 |
+| Facts | 0.8 |
+| Tasks/events | 0.7 |
+| Casual mentions | 0.4 |
+
+Higher importance means slower effective decay.
+
+## Protected Types
+
+Some memory types are protected from decay:
+
+```json
+{
+  "memory": {
+    "decay": {
+      "protectedTypes": ["identity"]
+    }
+  }
+}
+```
+
+Protected memories maintain full strength regardless of age or recall count.
+
+## Pruning
+
+Memories below the prune threshold are candidates for removal:
+
+```json
+{
+  "memory": {
+    "decay": {
+      "pruneThreshold": 0.05
+    }
+  }
+}
+```
+
+During maintenance:
+1. Calculate strength for all memories
+2. Identify memories below threshold
+3. Archive or delete based on configuration
+
+```bash
+# Run decay maintenance
+clawcolony memory decay-prune --dry-run
+
+# Actually prune
+clawcolony memory decay-prune
+```
+
+## Strength Calculation
+
+At query time, strength is calculated dynamically:
+
+```typescript
+function calculateStrength(memory: Memory): number {
+  const daysSinceCreation =
+    (Date.now() - new Date(memory.created_at).getTime()) / (1000 * 60 * 60 * 24);
+
+  const decayFactor = Math.exp(-config.baseLambda * daysSinceCreation);
+  const recallBoost = 1 + memory.recall_count * config.boostFactor;
+
+  return Math.min(1.0, memory.importance * decayFactor * recallBoost);
+}
+```
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "memory": {
+      "decay": {
+        "baseLambda": 0.16,
+        "importanceWeight": 0.8,
+        "recallBoostFactor": 0.2,
+        "pruneThreshold": 0.05,
+        "protectedTypes": ["identity"],
+        "maintenanceIntervalHours": 24
+      }
+    }
+  }
+}
+```
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `baseLambda` | 0.16 | Decay rate (higher = faster decay) |
+| `importanceWeight` | 0.8 | How much importance affects decay |
+| `recallBoostFactor` | 0.2 | Strength boost per recall |
+| `pruneThreshold` | 0.05 | Minimum strength before pruning |
+| `protectedTypes` | ["identity"] | Types immune to decay |
+
+## Tuning Lambda
+
+The `baseLambda` parameter controls decay speed:
+
+| Lambda | Half-life (days) | Use Case |
+| ------ | ---------------- | -------- |
+| 0.05 | ~14 | Slow decay, long retention |
+| 0.10 | ~7 | Moderate decay |
+| 0.16 | ~4.3 | Default, balanced |
+| 0.25 | ~2.8 | Fast decay |
+| 0.50 | ~1.4 | Very fast decay |
+
+Adjust based on your use case:
+- Personal assistant: Lower lambda (0.05-0.10)
+- Task-focused: Higher lambda (0.20-0.30)
+
+## Integration with Recall
+
+When memories are recalled:
+
+1. **Increment recall count**: `recall_count += 1`
+2. **Update timestamp**: `last_recalled = now()`
+3. **Recalculate strength**: For ranking purposes
+
+```typescript
+async function recall(memoryId: string): Promise<void> {
+  await db.run(`
+    UPDATE memories
+    SET recall_count = recall_count + 1,
+        last_recalled = datetime('now')
+    WHERE id = ?
+  `, memoryId);
+}
+```
+
+## CLI Commands
+
+```bash
+# View memory strength
+clawcolony memory strength <memory-id>
+
+# List memories by strength
+clawcolony memory list --sort-by strength
+
+# View decay statistics
+clawcolony memory decay-stats
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Memory Overview" icon="brain" href="/memory/overview">
+    Full memory system.
+  </Card>
+  <Card title="Temporal Graph" icon="diagram-project" href="/memory/temporal-graph">
+    Knowledge graph.
+  </Card>
+  <Card title="Fast-Facts" icon="bolt" href="/memory/fast-facts">
+    Quick lookups.
+  </Card>
+</CardGroup>

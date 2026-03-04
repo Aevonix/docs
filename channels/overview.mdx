@@ -1,0 +1,248 @@
+---
+title: "Supported Channels"
+description: "39 messaging channels inherited from OpenClaw"
+icon: "comments"
+---
+
+ClawColony inherits all 39 messaging channels from OpenClaw. Each channel connects your colony to a different communication platform.
+
+## Channel List
+
+### Primary Channels
+
+| Channel | Protocol | Features |
+| ------- | -------- | -------- |
+| WhatsApp | WhatsApp Business API | Messages, images, documents |
+| Telegram | Bot API | Messages, inline keyboards, files |
+| Discord | Discord.js | Messages, embeds, reactions, threads |
+| Slack | Slack API | Messages, threads, reactions, files |
+| Signal | Signal Protocol | End-to-end encrypted messages |
+| iMessage | BlueBubbles | Messages, reactions (macOS required) |
+| Line | LINE Messaging API | Messages, stickers, rich menus |
+| Feishu/Lark | Open API | Messages, cards, interactive elements |
+| MS Teams | Graph API | Messages, cards, meetings |
+| Matrix | Matrix Protocol | Federated, E2E encrypted |
+
+### Secondary Channels
+
+| Channel | Protocol | Features |
+| ------- | -------- | -------- |
+| IRC | IRC Protocol | Text messages |
+| Twitch | Twitch API | Chat messages, commands |
+| Nostr | Nostr Protocol | Decentralized, signed messages |
+| Google Chat | Chat API | Messages, cards |
+| Mattermost | REST API | Messages, threads, reactions |
+| Synology Chat | REST API | Messages, files |
+| Zalo | Zalo API | Messages for Vietnam market |
+| Tlon | Urbit | Decentralized messaging |
+| Nextcloud Talk | Talk API | Messages, calls |
+
+### Extension Channels (20+)
+
+Additional channels available via community extensions:
+
+- Email (IMAP/SMTP)
+- SMS (Twilio, Nexmo)
+- Voice (Twilio, Vonage)
+- WeChat (Mini Program API)
+- Messenger (Facebook API)
+- LinkedIn (Messaging API)
+- Twitter/X (DM API)
+- Reddit (API)
+- GitHub (Issues, PRs)
+- Jira (Comments)
+- Zendesk (Tickets)
+- Intercom (Conversations)
+- Freshdesk (Tickets)
+- HubSpot (Conversations)
+- Salesforce (Cases)
+- Webhook (Generic)
+- WebSocket (Generic)
+- REST (Generic)
+- gRPC (Generic)
+- Custom (Plugin SDK)
+
+## Channel Configuration
+
+Each channel is configured in `clawcolony.json`:
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "botToken": "${TELEGRAM_BOT_TOKEN}",
+      "allowedUsers": ["@username1", "@username2"]
+    },
+    "discord": {
+      "enabled": true,
+      "botToken": "${DISCORD_BOT_TOKEN}",
+      "guildId": "123456789",
+      "allowedChannels": ["general", "support"]
+    },
+    "slack": {
+      "enabled": true,
+      "botToken": "${SLACK_BOT_TOKEN}",
+      "appToken": "${SLACK_APP_TOKEN}",
+      "allowedChannels": ["C12345678"]
+    }
+  }
+}
+```
+
+## Channel Capabilities
+
+Not all channels support all features:
+
+| Feature | Telegram | Discord | Slack | WhatsApp | iMessage |
+| ------- | :------: | :-----: | :---: | :------: | :------: |
+| Text messages | Yes | Yes | Yes | Yes | Yes |
+| Images | Yes | Yes | Yes | Yes | Yes |
+| Files | Yes | Yes | Yes | Yes | Yes |
+| Reactions | Yes | Yes | Yes | Yes | Yes |
+| Threads | No | Yes | Yes | No | No |
+| Inline keyboards | Yes | Yes (buttons) | Yes (blocks) | Yes | No |
+| Voice | No | Yes | Yes | Yes | No |
+| Video | No | Yes | Yes | Yes | No |
+| Location | Yes | No | No | Yes | No |
+
+## Channel Authentication
+
+Each channel has its own authentication method:
+
+### Token-based
+
+```bash
+clawcolony secrets set TELEGRAM_BOT_TOKEN
+clawcolony secrets set DISCORD_BOT_TOKEN
+clawcolony secrets set SLACK_BOT_TOKEN
+```
+
+### OAuth-based
+
+For channels requiring OAuth:
+
+```bash
+clawcolony channel auth google-chat
+# Opens browser for OAuth flow
+```
+
+### Certificate-based
+
+For channels like iMessage (BlueBubbles):
+
+```bash
+clawcolony channel setup imessage
+# Guides through BlueBubbles setup
+```
+
+## Multi-Channel Routing
+
+Messages can be routed across channels:
+
+```json
+{
+  "routing": {
+    "defaultChannel": "telegram",
+    "rules": [
+      {
+        "match": { "contact": "work-*" },
+        "channel": "slack"
+      },
+      {
+        "match": { "priority": "urgent" },
+        "channel": "sms"
+      }
+    ]
+  }
+}
+```
+
+## Channel Status
+
+```bash
+clawcolony channel status
+```
+
+Output:
+
+```
+Channel Status
+
+Channel      Status    Messages/Day   Last Activity
+──────────────────────────────────────────────────────
+telegram     online    142            2 min ago
+discord      online    89             5 min ago
+slack        online    234            1 min ago
+whatsapp     offline   -              Credential expired
+imessage     online    23             1 hour ago
+
+Online: 4/5
+```
+
+## Channel Events
+
+Subscribe to channel events in plugins:
+
+```typescript
+eventBus.subscribe("channel:message_received", (event) => {
+  console.log(`Message from ${event.payload.channel}: ${event.payload.text}`);
+});
+
+eventBus.subscribe("channel:status_changed", (event) => {
+  console.log(`${event.payload.channel} is now ${event.payload.status}`);
+});
+```
+
+## Adding Channels
+
+Enable a new channel:
+
+```bash
+# Enable channel
+clawcolony channel enable telegram
+
+# Configure credentials
+clawcolony secrets set TELEGRAM_BOT_TOKEN
+
+# Test connection
+clawcolony channel test telegram
+```
+
+## Troubleshooting
+
+### Channel Offline
+
+1. Check credentials: `clawcolony secrets list`
+2. Test connection: `clawcolony channel test <channel>`
+3. Check logs: `tail -f ~/Library/Logs/clawcolony/gateway.log`
+
+### Rate Limiting
+
+Most platforms have rate limits. ClawColony handles these automatically:
+- Queues messages when rate limited
+- Backs off exponentially
+- Alerts on sustained rate limiting
+
+### Webhook Issues
+
+For webhook-based channels:
+
+```bash
+# Check webhook status
+clawcolony channel webhook-status <channel>
+
+# Re-register webhook
+clawcolony channel register-webhook <channel>
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/reference/configuration">
+    Full config reference.
+  </Card>
+  <Card title="Credentials" icon="key" href="/security/credentials">
+    Credential management.
+  </Card>
+</CardGroup>

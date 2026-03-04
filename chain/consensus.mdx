@@ -1,0 +1,209 @@
+---
+title: "Raft Consensus"
+description: "How ColonyChain achieves consensus with Raft-lite"
+icon: "handshake"
+---
+
+ColonyChain uses a simplified Raft consensus algorithm for block ordering. This provides strong consistency with fast finality.
+
+## Raft Overview
+
+Raft is a consensus algorithm designed for understandability. It separates concerns into:
+
+1. **Leader election**: One node leads at a time
+2. **Log replication**: Leader replicates entries to followers
+3. **Safety**: Committed entries are never lost
+
+ColonyChain implements "Raft-lite": the core algorithm without advanced features like membership changes during operation.
+
+## Leader Election
+
+When the leader fails or the cluster starts:
+
+1. **Timeout triggers**: A follower's election timeout expires
+2. **Candidate state**: Follower becomes candidate, increments term
+3. **Vote request**: Candidate requests votes from all nodes
+4. **Majority wins**: First to receive majority becomes leader
+5. **Heartbeat**: New leader sends heartbeats to maintain authority
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Leader Election                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Follower              Candidate             Leader         │
+│     │                     │                    │            │
+│     │  timeout expires    │                    │            │
+│     ├────────────────────►│                    │            │
+│     │                     │                    │            │
+│     │                     │  request votes     │            │
+│     │◄────────────────────┤───────────────────►│            │
+│     │                     │                    │            │
+│     │  grant vote         │  grant vote        │            │
+│     ├────────────────────►│◄───────────────────┤            │
+│     │                     │                    │            │
+│     │                     │  majority received │            │
+│     │                     ├───────────────────►│            │
+│     │                     │  (becomes leader)  │            │
+│     │                                          │            │
+│     │◄─────────────────────────────────────────┤            │
+│     │         heartbeats (AppendEntries)       │            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Block Proposal
+
+The leader proposes blocks:
+
+1. **Collect transactions**: Pull from mempool
+2. **Build block**: Create block with merkle root
+3. **AppendEntries**: Send block to followers
+4. **Wait for votes**: Followers validate and vote
+5. **Commit**: If 2/3 vote yes, append to chain
+
+```typescript
+interface BlockProposal {
+  term: number;          // Raft term
+  leaderIndex: number;   // Leader's block height
+  block: Block;          // Proposed block
+  leaderCommit: number;  // Leader's commit index
+}
+```
+
+## Voting Rules
+
+Followers validate and vote on proposals:
+
+```typescript
+function validateBlock(proposal: BlockProposal): boolean {
+  // Check term
+  if (proposal.term < currentTerm) return false;
+
+  // Check previous hash
+  if (proposal.block.previous_hash !== lastBlockHash) return false;
+
+  // Validate all transactions
+  for (const tx of proposal.block.transactions) {
+    if (!validateTransaction(tx)) return false;
+  }
+
+  // Verify merkle root
+  if (computeMerkleRoot(proposal.block.transactions) !== proposal.block.merkle_root) {
+    return false;
+  }
+
+  // Verify producer signature
+  if (!verifySignature(proposal.block)) return false;
+
+  return true;
+}
+```
+
+## Commit Threshold
+
+A block commits when 2/3 of validators vote yes:
+
+```
+Required votes = max(2, ceil(validatorCount × 0.67))
+```
+
+| Validators | Required Votes |
+| ---------- | -------------- |
+| 3 | 2 |
+| 4 | 3 |
+| 5 | 4 |
+| 7 | 5 |
+| 10 | 7 |
+
+## Terms
+
+Raft uses monotonically increasing term numbers:
+
+- Each term has at most one leader
+- Term increments on election timeout
+- Stale messages (lower term) are rejected
+- Node adopts higher term if seen
+
+```typescript
+function handleMessage(msg: RaftMessage): void {
+  if (msg.term > currentTerm) {
+    currentTerm = msg.term;
+    state = "follower";
+    votedFor = null;
+  }
+
+  if (msg.term < currentTerm) {
+    return; // Reject stale message
+  }
+
+  // Process message...
+}
+```
+
+## Leader Failure
+
+If the leader fails to produce a block within `electionTimeoutMs`:
+
+1. A follower's timeout expires
+2. Follower becomes candidate
+3. Election proceeds as normal
+4. New leader continues from last committed block
+
+Uncommitted transactions in the mempool may be lost during leader transition.
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "chain": {
+      "raft": {
+        "electionTimeoutMs": 5000,
+        "heartbeatIntervalMs": 1000,
+        "batchSize": 100
+      }
+    }
+  }
+}
+```
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `electionTimeoutMs` | 5000 | Time before triggering election |
+| `heartbeatIntervalMs` | 1000 | Leader heartbeat interval |
+| `batchSize` | 100 | Blocks per sync batch |
+
+## Safety Properties
+
+Raft guarantees:
+
+1. **Election safety**: At most one leader per term
+2. **Leader append-only**: Leader never overwrites or deletes entries
+3. **Log matching**: If two logs have same entry at same index, all prior entries match
+4. **Leader completeness**: Committed entries present in all future leaders
+5. **State machine safety**: Applying same entries yields same state
+
+## Differences from Full Raft
+
+ColonyChain's Raft-lite omits:
+
+- **Dynamic membership**: Validator set changes require protocol upgrade
+- **Log compaction**: Uses periodic state checkpoints instead
+- **Pre-vote**: All elections are standard
+
+These simplifications are acceptable because:
+- Colony validator sets change infrequently
+- State is small enough to checkpoint
+- Network partitions are rare in practice
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Chain Overview" icon="link" href="/chain/overview">
+    ColonyChain architecture.
+  </Card>
+  <Card title="Transactions" icon="receipt" href="/chain/transactions">
+    Transaction types that get proposed.
+  </Card>
+</CardGroup>

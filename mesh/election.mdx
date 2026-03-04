@@ -1,0 +1,160 @@
+---
+title: "Leader Election"
+description: "How new Queens are elected when the current Queen fails"
+icon: "crown"
+---
+
+When the Queen goes offline, the colony must elect a new leader to continue operations. The election process depends on whether a Regent exists.
+
+## Election Scenarios
+
+### Scenario 1: Regent Exists
+
+When a Regent is configured and the Queen fails:
+
+1. **Immediate takeover**: The Regent promotes itself to Queen (no consensus required)
+2. **Certificate update**: Regent's certificate is updated to Queen role
+3. **Announcement**: New Queen broadcasts its status via gossip
+4. **Recovery time**: <30 seconds
+
+No data loss occurs because the Regent has full signing authority and can continue block production immediately.
+
+### Scenario 2: No Regent
+
+When no Regent exists and the Queen fails:
+
+1. **Failure detection**: SWIM protocol detects Queen as dead (30-second timeout)
+2. **Election trigger**: Any Sentinel can initiate an election
+3. **Candidate scoring**: Nodes are scored by uptime and resources
+4. **Voting**: Majority vote determines the winner
+5. **Promotion**: Winner promotes to Queen and issues new certificates
+6. **Recovery time**: 1-5 minutes
+
+Uncommitted mempool transactions may be lost during this period.
+
+## Election Triggers
+
+Elections can be triggered by:
+
+| Trigger | Description |
+| ------- | ----------- |
+| `queen_timeout` | Queen missed heartbeat timeout |
+| `queen_swim_dead` | SWIM protocol declared Queen dead |
+| `manual` | Operator manually triggered election |
+| `graceful_shutdown` | Queen initiated graceful shutdown |
+| `startup` | No Queen detected at colony startup |
+
+## Candidate Scoring
+
+Candidates are scored based on:
+
+1. **Uptime (primary)**: Longer uptime is preferred
+2. **Resource capacity (tiebreak)**: More RAM/CPU wins ties
+3. **Role (tiebreak)**: Sentinels preferred over Drones
+
+```typescript
+interface CandidateScore {
+  nodeId: string;
+  uptimeSeconds: number;
+  resourceScore: number;  // RAM + CPU weighted
+  role: NodeRole;
+  totalScore: number;
+}
+```
+
+Scoring formula:
+```
+totalScore = (uptimeSeconds / 86400) * 0.7 + (resourceScore / maxResource) * 0.3
+```
+
+## Voting Process
+
+1. **Nomination**: Each candidate broadcasts its score
+2. **Collection**: Nodes collect nominations for 10 seconds
+3. **Voting**: Each node votes for the highest-scoring candidate
+4. **Tallying**: First candidate to receive majority wins
+5. **Announcement**: Winner broadcasts election result
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     Election Timeline                        │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│  T+0s         T+10s        T+20s        T+30s                │
+│    │            │            │            │                   │
+│    ▼            ▼            ▼            ▼                   │
+│  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐             │
+│  │ Detect │  │Nominate│  │  Vote  │  │ Winner │             │
+│  │ Failure│  │ Phase  │  │ Phase  │  │Promotes│             │
+│  └────────┘  └────────┘  └────────┘  └────────┘             │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## Post-Election
+
+After a new Queen is elected:
+
+1. **Certificate reissuance**: New Queen issues updated certificates to all nodes
+2. **Chain sync**: New Queen syncs mempool from peers
+3. **Block production**: New Queen begins producing blocks
+4. **Regent assignment**: Queen may designate a Regent for future failover
+
+## Preventing Split-Brain
+
+To prevent multiple nodes thinking they are Queen:
+
+1. **Incarnation numbers**: Each leader change increments the incarnation
+2. **Signature verification**: All messages verify against known Queen pubkey
+3. **Quorum requirement**: Elections require majority participation
+
+If a network partition heals and two Queens exist:
+- The Queen with higher incarnation wins
+- Lower incarnation Queen demotes to Regent
+
+## Configuration
+
+Election behavior is configurable:
+
+```json
+{
+  "colony": {
+    "network": {
+      "mesh": {
+        "electionTimeoutMs": 30000,
+        "nominationPeriodMs": 10000,
+        "votingPeriodMs": 10000,
+        "minVotesForQuorum": 0.51
+      }
+    }
+  }
+}
+```
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `electionTimeoutMs` | 30000 | Time before declaring election failed |
+| `nominationPeriodMs` | 10000 | Time for candidates to nominate |
+| `votingPeriodMs` | 10000 | Time for voting |
+| `minVotesForQuorum` | 0.51 | Minimum vote percentage for victory |
+
+## Manual Election
+
+Force an election (useful for maintenance):
+
+```bash
+clawcolony mesh election --reason "Planned maintenance"
+```
+
+This gracefully transitions Queen duties to the next candidate.
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Node Roles" icon="users" href="/mesh/queen-regent-drone">
+    Role responsibilities.
+  </Card>
+  <Card title="Gossip Protocol" icon="comments" href="/mesh/gossip">
+    SWIM failure detection.
+  </Card>
+</CardGroup>

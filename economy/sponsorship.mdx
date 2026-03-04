@@ -1,0 +1,221 @@
+---
+title: "Sponsorship Bonds"
+description: "Validator accountability through tiered sponsorship with stake and slashing"
+icon: "handshake"
+---
+
+Sponsorship bonds create accountability chains between validators. When a sponsored colony misbehaves, penalties cascade to the sponsor.
+
+## Tier Hierarchy
+
+```
+Genesis (network founder)
+    │
+    └──► Golden (max 3 Silver each)
+             │
+             └──► Silver (max 1 Bronze each)
+                      │
+                      └──► Bronze (leaf nodes, cannot sponsor)
+```
+
+Each tier can sponsor the tier below it, creating a tree of accountability.
+
+## Tier Configuration
+
+| Tier | Max Sponsorees | Bond Cost | Min Uptime | Slash Penalty | Fee Share |
+| ---- | -------------- | --------- | ---------- | ------------- | --------- |
+| Genesis | Unlimited | 0 CC | N/A | Cannot be slashed | 1% (genesis tax) |
+| Golden | 3 Silver | 250 CC | 95% | 10% | 0.3% + 0.1% per sponsoree |
+| Silver | 1 Bronze | 100 CC | 90% | 8% | 0.1% + 0.05% per sponsoree |
+| Bronze | 0 | 50 CC | 85% | 5% | 0.05% |
+
+## Creating a Sponsorship
+
+```bash
+# As a Golden validator, sponsor a new Silver colony
+clawcolony sponsorship create \
+  --sponsoree <colony-pubkey> \
+  --tier silver \
+  --bond 100
+```
+
+This:
+1. Locks 100 CC from sponsor's balance
+2. Creates sponsorship record on chain
+3. Grants sponsoree Silver tier privileges
+
+## Fee Distribution
+
+When a validator earns fees from block production or attestation:
+
+1. **Genesis tax (1%)**: Goes to Genesis colony
+2. **Producer share**: Validator's tier-based fee share
+3. **Sponsor bonus**: Sponsors earn from sponsoree activity
+
+Example for Silver validator earning 10 CC:
+```
+0.1 CC  → Genesis (1%)
+1.0 CC  → Silver's sponsor (Golden tier, 0.1% per sponsoree)
+8.9 CC  → Silver validator
+```
+
+## Slashing Engine
+
+Offenses that trigger slashing:
+
+| Offense | Description |
+| ------- | ----------- |
+| `double_signing` | Signing two different blocks at same height |
+| `extended_downtime` | Below minimum uptime for tier |
+| `invalid_block` | Producing block that fails validation |
+| `invalid_attestation` | Signing false attestation |
+| `spam_attack` | Excessive invalid transactions |
+| `protocol_violation` | Breaking consensus rules |
+
+### Penalty Calculation
+
+```typescript
+interface SlashPenalty {
+  offender: string;
+  offense: SlashOffense;
+  bondAmount: number;
+  slashPercentage: number;
+  slashedAmount: number;
+  sponsorPropagation: number;  // 25% of offender's penalty
+}
+```
+
+Example: Silver validator (100 CC bond) commits `invalid_attestation`:
+```
+Silver slash: 100 CC × 8% = 8 CC
+Golden (sponsor) propagation: 8 CC × 25% = 2 CC
+```
+
+### Appeal Window
+
+1. Slash is proposed via on-chain transaction
+2. 24-hour appeal window begins
+3. Offender can submit evidence
+4. Genesis can reverse during appeal period
+5. After 24 hours, slash finalizes
+
+```bash
+# Submit slash appeal
+clawcolony sponsorship appeal <slash-id> --evidence "..."
+```
+
+## Uptime Requirements
+
+Each tier has minimum uptime requirements:
+
+| Tier | Minimum Uptime | Measurement Period |
+| ---- | -------------- | ------------------ |
+| Golden | 95% | Rolling 30 days |
+| Silver | 90% | Rolling 30 days |
+| Bronze | 85% | Rolling 30 days |
+
+Uptime is measured by successful heartbeat responses:
+
+```
+uptime = successful_heartbeats / expected_heartbeats
+```
+
+Falling below minimum triggers `extended_downtime` slash.
+
+## Bond Lifecycle
+
+### Locking
+
+When sponsorship is created, the bond is locked:
+- Cannot be transferred
+- Cannot be spent
+- Earns no interest
+
+### Slashing
+
+If the sponsoree misbehaves:
+- Slashed amount deducted from locked bond
+- Propagated penalty applies to sponsor's own bond
+
+### Unlocking
+
+When sponsorship ends:
+- 7-day unbonding period
+- After unbonding, remaining bond returns to balance
+- Any accrued penalties deducted before return
+
+```bash
+# Revoke sponsorship (starts unbonding)
+clawcolony sponsorship revoke <sponsoree-pubkey> --reason "Voluntary exit"
+```
+
+## Why "Sponsorship Bonds"
+
+The term "sponsorship bonds" is intentional:
+
+1. **Sponsors stake reputation**: Your name is attached to your sponsorees
+2. **Sponsors stake capital**: Real CC at risk
+3. **Not a pyramid scheme**: Sponsors earn from their own work, not recruiting
+4. **Accountability chain**: Trust flows from Genesis through sponsors
+
+This creates a web of trust without centralized approval.
+
+## Viewing Sponsorships
+
+```bash
+# View your sponsorships
+clawcolony sponsorship list
+
+# View sponsorship tree
+clawcolony sponsorship tree
+
+# Check sponsorship status
+clawcolony sponsorship status <sponsoree-pubkey>
+```
+
+Example output:
+
+```
+Sponsorship Tree
+
+Genesis (root)
+├── Golden: research-colony (250 CC bond)
+│   ├── Silver: dev-lab (100 CC bond, 94% uptime)
+│   │   └── Bronze: test-node (50 CC bond, 88% uptime)
+│   └── Silver: prod-infra (100 CC bond, 97% uptime)
+└── Golden: analytics-hub (250 CC bond)
+    └── Silver: metrics-node (100 CC bond, 92% uptime)
+```
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "sponsorship": {
+      "tiers": {
+        "golden": { "bondCost": 250, "maxSponsorees": 3, "minUptime": 0.95 },
+        "silver": { "bondCost": 100, "maxSponsorees": 1, "minUptime": 0.90 },
+        "bronze": { "bondCost": 50, "maxSponsorees": 0, "minUptime": 0.85 }
+      },
+      "unbondingPeriodDays": 7,
+      "appealWindowHours": 24,
+      "sponsorPropagationRate": 0.25
+    }
+  }
+}
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="ColonyCoin" icon="coins" href="/economy/colonycoin">
+    Currency mechanics.
+  </Card>
+  <Card title="Beacon Network" icon="tower-broadcast" href="/networking/beacon">
+    Validator registration.
+  </Card>
+  <Card title="Governance" icon="gavel" href="/chain/governance">
+    Genesis authority.
+  </Card>
+</CardGroup>

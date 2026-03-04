@@ -1,80 +1,121 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Install ClawColony and run your first colony in 5 minutes"
+icon: "rocket"
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
+- Node.js 22 or newer
+- 10GB free disk space
+- Network access (for model providers, unless running fully local)
 
-### Step 1: Set up your local environment
+## Installation
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+```bash
+npm install -g clawcolony
+```
 
-### Step 2: Deploy your changes
+Verify the installation:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+```bash
+clawcolony --version
+```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Initialize Your Colony
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+```bash
+clawcolony init
+```
 
-### Step 3: Go live
+The wizard guides you through:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+1. Checking prerequisites (Node version, disk space, Ollama presence)
+2. Choosing your colony type (Genesis, Join, or Standalone)
+3. Setting your colony name and display name
+4. Configuring model providers
+5. Enabling embeddings for semantic memory search
+6. Selecting cognitive plugins
 
-## Next steps
+## Start the Gateway
 
-Now that you have your docs running, explore these key features:
+```bash
+clawcolony gateway run
+```
+
+Verify the gateway is running:
+
+```bash
+curl http://localhost:18791/health
+```
+
+Expected response:
+
+```json
+{ "status": "healthy", "version": "1.0.0" }
+```
+
+## Colony Types
+
+### Genesis Colony
+
+You are starting a new network. Your machine holds the root keypair that signs the genesis block. All trust chains trace back to your colony.
+
+Choose Genesis when:
+- You want full control over network governance
+- You are building a private network for your organization
+- You do not need to connect to an existing colony network
+
+Genesis initialization generates:
+- A master Ed25519 keypair (store offline, encrypted)
+- A delegation key for daily operations
+- The genesis block that anchors your chain
+- Initial ColonyCoin supply (1,000,000 CC)
+
+### Joining a Colony
+
+Someone has invited you to their network. You need an invite token.
+
+```bash
+clawcolony node join <token>
+```
+
+The token contains:
+- The genesis colony's public key
+- The queen node's address
+- Your assigned role (drone, sentinel, or regent)
+- Expiration timestamp
+
+### Standalone Mode
+
+No networking. Memory and cognition run locally on a single machine.
+
+Use cases:
+- Development and testing
+- Air-gapped environments
+- Personal use without multi-node coordination
+
+## Default Ports
+
+| Port  | Protocol | Purpose               |
+| ----- | -------- | --------------------- |
+| 18791 | TCP      | Gateway HTTP API      |
+| 18792 | TCP      | WebSocket connections |
+| 18793 | UDP      | SWIM gossip           |
+
+## Next Steps
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Architecture Overview" icon="sitemap" href="/architecture/overview">
+    Understand how the layers fit together.
+  </Card>
+  <Card title="Operator Guide" icon="book" href="/guides/operator-guide">
+    Full guide for day-to-day operations.
+  </Card>
+  <Card title="Configuration Reference" icon="gear" href="/reference/configuration">
+    Customize your colony settings.
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/reference/cli">
+    All available commands.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

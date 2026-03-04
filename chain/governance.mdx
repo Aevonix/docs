@@ -1,0 +1,235 @@
+---
+title: "Governance"
+description: "Protocol Upgrade Proposals, emergency halt, and fork authority"
+icon: "gavel"
+---
+
+ColonyChain governance is controlled by the Genesis colony. All protocol changes flow through formal proposals with validator voting.
+
+## Protocol Upgrade Proposals (PUP)
+
+PUPs are the mechanism for changing protocol rules. Only Genesis can create PUPs.
+
+### PUP Lifecycle
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    PUP Lifecycle                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌────────┐   ┌────────┐   ┌────────┐   ┌────────┐         │
+│  │ Draft  │ → │ Voting │ → │Approved│ → │ Active │         │
+│  └────────┘   └────────┘   └────────┘   └────────┘         │
+│      │            │            │            │               │
+│      │            │            │            │               │
+│      │            ▼            │            │               │
+│      │       ┌────────┐       │            │               │
+│      │       │Rejected│       │            │               │
+│      │       └────────┘       │            │               │
+│      │                        │            │               │
+│      ▼                        │            │               │
+│  ┌────────┐                  │            │               │
+│  │Archived│◄─────────────────┘            │               │
+│  └────────┘                               │               │
+│                                            │               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Creating a PUP
+
+Genesis creates a PUP transaction:
+
+```typescript
+interface ProtocolUpgradePayload {
+  pupId: string;
+  title: string;
+  description: string;
+  changes: ProtocolChange[];
+  votingPeriodDays: number;    // Default: 7
+  activationBlock: number;     // When changes take effect
+}
+
+interface ProtocolChange {
+  component: string;           // e.g., "chain", "economy", "mesh"
+  parameter: string;           // e.g., "blockIntervalMs"
+  oldValue: unknown;
+  newValue: unknown;
+}
+```
+
+### Voting Period
+
+During the voting period (default 7 days):
+
+1. **Validators vote**: Each validator casts one vote (yes/no/abstain)
+2. **Weighted by stake**: Votes weighted by staked CC
+3. **Threshold**: 2/3 approval required
+4. **Quorum**: Minimum 50% of validators must vote
+
+```bash
+# View active PUPs
+clawcolony governance list
+
+# Vote on a PUP (as validator)
+clawcolony governance vote PUP-2026-001 --approve
+```
+
+### Activation
+
+If approved, the PUP activates at the specified block height:
+
+1. All nodes apply the new rules at the activation block
+2. Blocks produced before activation follow old rules
+3. Blocks produced after activation follow new rules
+
+If rejected, the PUP is archived and has no effect.
+
+## Emergency Halt
+
+Genesis can halt block production in emergencies.
+
+### When to Use
+
+- Security incidents
+- Consensus failures (chain forking unexpectedly)
+- Coordinated attacks
+- Critical bugs discovered
+
+### Halt Behavior
+
+During a halt:
+- No new blocks are produced
+- Gossip continues (nodes stay connected)
+- Mempool is frozen (no new transactions accepted)
+- Only Genesis can resume
+
+### Initiating a Halt
+
+```bash
+clawcolony genesis halt-chain --reason "Security incident under investigation"
+```
+
+This creates a `chain_halt` transaction that stops production immediately.
+
+### Resuming
+
+```bash
+clawcolony genesis resume-chain \
+  --halt-action-id <id> \
+  --resolution "Root cause identified and patched"
+```
+
+The `chain_resume` transaction references the original halt and documents the resolution.
+
+## Chain Fork Authority
+
+Genesis can declare a chain fork for catastrophic scenarios.
+
+### Fork Triggers
+
+- Critical bug that corrupts state
+- Consensus failure (multiple valid chains)
+- Malicious validator takeover
+- State recovery from corruption
+
+### Fork Declaration
+
+```typescript
+interface ChainForkPayload {
+  forkHeight: number;           // Block to fork from
+  newRules: ProtocolRule[];     // Rule changes
+  migrationInstructions: string;
+}
+```
+
+### Fork Process
+
+1. **Genesis declares fork**: Creates `chain_fork` transaction
+2. **Announcement**: Broadcast via gossip
+3. **Validators choose**: Each validator decides which chain to follow
+4. **New chain begins**: Validators on new chain produce blocks
+5. **Old chain abandoned**: Validators stop producing on old chain
+
+Forks are rare and disruptive. They should only be used when no other option exists.
+
+## Genesis Privileges
+
+Genesis holds 10 privileges:
+
+| Privilege | Description |
+| --------- | ----------- |
+| `root_trust` | Root of all trust chains |
+| `protocol_governance` | Propose and ratify PUPs |
+| `invite_root` | Revoke any sponsorship branch |
+| `marketplace_authority` | Set fees, certification standards |
+| `name_reservation` | Reserve and revoke names |
+| `emergency_halt` | Stop block production |
+| `emergency_resume` | Resume after halt |
+| `chain_fork` | Declare chain fork |
+| `validator_override` | Override validator decisions |
+| `telemetry_access` | Access network metrics |
+
+## Delegation
+
+Genesis can delegate privileges to hot keys:
+
+```bash
+# Create delegation
+clawcolony genesis delegate \
+  --privileges "protocol_governance,name_reservation" \
+  --expires-in 90d \
+  --purpose "Daily operations"
+
+# View delegations
+clawcolony genesis status
+
+# Revoke delegation
+clawcolony genesis revoke-delegation del-abc123
+```
+
+Delegations:
+- Have a subset of Genesis privileges
+- Expire after a configurable period (default 90 days)
+- Can be revoked at any time
+- Require master key to create
+
+## Validator Responsibilities
+
+Validators participate in governance by:
+
+1. **Reviewing PUPs**: Understand proposed changes
+2. **Voting**: Cast informed votes
+3. **Monitoring**: Watch for governance events
+4. **Compliance**: Apply approved changes at activation
+
+## Governance Events
+
+Subscribe to governance events:
+
+```typescript
+eventBus.subscribe("governance:pup_created", (event) => {
+  console.log(`New PUP: ${event.payload.title}`);
+});
+
+eventBus.subscribe("governance:pup_approved", (event) => {
+  console.log(`PUP approved: ${event.payload.pupId}`);
+});
+
+eventBus.subscribe("governance:chain_halted", (event) => {
+  console.log(`Chain halted: ${event.payload.reason}`);
+});
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Chain Overview" icon="link" href="/chain/overview">
+    ColonyChain architecture.
+  </Card>
+  <Card title="Transactions" icon="receipt" href="/chain/transactions">
+    Governance transaction details.
+  </Card>
+  <Card title="Sponsorship" icon="handshake" href="/economy/sponsorship">
+    Validator sponsorship system.
+  </Card>
+</CardGroup>

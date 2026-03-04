@@ -1,0 +1,154 @@
+---
+title: "ColonyChain Overview"
+description: "Lightweight blockchain for permanent, tamper-proof records"
+icon: "link"
+---
+
+ColonyChain is a lightweight append-only ledger for permanent, tamper-proof records. It is not a cryptocurrency blockchain. It provides deterministic state, fast finality, and governance without token speculation.
+
+## Design Goals
+
+- **No external blockchain dependency**: Self-contained within the colony
+- **Deterministic state from genesis**: Replay blocks to reconstruct state
+- **Fast finality**: 30-second blocks with Raft consensus
+- **Governance without speculation**: Protocol upgrades via proposals, not market forces
+
+## Block Structure
+
+```typescript
+interface Block {
+  index: number;                    // Height (0 = genesis)
+  previous_hash: string;            // SHA-256 of previous block
+  timestamp: string;                // ISO-8601
+  transactions: Transaction[];
+  merkle_root: string;              // Merkle tree of tx IDs
+  producer_id: string;              // Validator who produced
+  signature: string;                // Ed25519 signature
+  metadata?: Record<string, unknown>; // Genesis block only
+}
+```
+
+## Block Production
+
+Validators produce blocks in round-robin order using Raft-lite consensus:
+
+1. **Leader proposes block**: Collects transactions from mempool
+2. **Followers vote**: Validate transactions and block structure
+3. **2/3 votes commits**: Block is appended to chain
+4. **Leader broadcasts commit**: All nodes apply state changes
+
+Default block interval: 30 seconds.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Block Production                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  T+0s        T+1s        T+2s        T+30s                  │
+│    │          │           │           │                      │
+│    ▼          ▼           ▼           ▼                      │
+│  ┌─────┐   ┌─────┐    ┌─────┐    ┌─────┐                   │
+│  │Build│ → │Propose│ → │ Vote │ → │Commit│                  │
+│  │ Txns│   │ Block │   │      │   │      │                  │
+│  └─────┘   └─────┘    └─────┘    └─────┘                   │
+│                                                              │
+│  Leader collects    Broadcast    2/3 votes    Append        │
+│  from mempool       to validators required    to chain      │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Chain State
+
+State is deterministic from replaying blocks:
+
+```typescript
+interface ChainState {
+  balances: Map<string, number>;           // ColonyCoin balances
+  name_registry: Map<string, string>;      // Name → colony pubkey
+  validator_roster: Map<string, ValidatorRosterEntry>;
+  sponsorship_bonds: Map<string, SponsorshipBond>;
+  staking_pool: Map<string, number>;
+  chain_status: "active" | "halted";
+  height: number;
+  total_burned: number;
+  total_genesis_tax: number;
+}
+```
+
+Any node can verify state by replaying from genesis.
+
+## Chain Status
+
+```bash
+clawcolony chain status
+```
+
+Output:
+
+```
+Chain Status
+  Height:         1,247
+  Tip hash:       8a3f2b1c...
+  Block rate:     2.0/min
+  Tx rate:        15.3/min
+  Mempool:        3 pending
+  Consensus:      leader (term 42)
+  Total burned:   1,234 CC
+  Genesis tax:    987 CC
+```
+
+## Chain Sync
+
+New validators sync via:
+
+1. Request blocks from peers in batches (default: 100)
+2. Validate each block (signatures, merkle root, state transitions)
+3. Apply to local state
+4. Continue until caught up to network tip
+
+```bash
+# Force chain sync
+clawcolony chain sync
+```
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "chain": {
+      "blockIntervalMs": 30000,
+      "maxTxPerBlock": 500,
+      "genesisTaxRate": 0.01,
+      "burnRate": 0.01,
+      "checkpointInterval": 100
+    }
+  }
+}
+```
+
+| Parameter | Default | Description |
+| --------- | ------- | ----------- |
+| `blockIntervalMs` | 30000 | Block production interval (ms) |
+| `maxTxPerBlock` | 500 | Maximum transactions per block |
+| `genesisTaxRate` | 0.01 | 1% tax to Genesis colony |
+| `burnRate` | 0.01 | 1% permanently burned |
+| `checkpointInterval` | 100 | Blocks between state checkpoints |
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Consensus" icon="handshake" href="/chain/consensus">
+    Raft consensus details.
+  </Card>
+  <Card title="Transactions" icon="receipt" href="/chain/transactions">
+    All 13 transaction types.
+  </Card>
+  <Card title="Governance" icon="gavel" href="/chain/governance">
+    PUPs, emergency halt, fork authority.
+  </Card>
+  <Card title="ColonyCoin" icon="coins" href="/economy/colonycoin">
+    Economic model.
+  </Card>
+</CardGroup>

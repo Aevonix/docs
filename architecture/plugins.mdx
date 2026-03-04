@@ -1,0 +1,233 @@
+---
+title: "Plugin System"
+description: "Every module implements CognitionPlugin for consistent lifecycle management"
+icon: "puzzle-piece"
+---
+
+ClawColony uses a plugin-first architecture. Every module implements the `CognitionPlugin` interface, providing consistent patterns for initialization, database migrations, and shutdown.
+
+## CognitionPlugin Interface
+
+```typescript
+export interface CognitionPlugin {
+  /** Unique name for this plugin */
+  readonly name: string;
+
+  /** Return SQL DDL for database tables this plugin needs */
+  getMigrationSQL(): string;
+
+  /** Called once on startup with shared dependencies */
+  initialize(deps: PluginDeps): void | Promise<void>;
+
+  /** Called on graceful shutdown */
+  shutdown(): void | Promise<void>;
+}
+```
+
+## Plugin Dependencies
+
+Plugins receive shared dependencies during initialization:
+
+```typescript
+interface PluginDeps {
+  db: Database;              // SQLite database instance
+  eventBus: EventBus;        // Typed event bus
+  config: ColonyConfig;      // Parsed configuration
+  logger: Logger;            // Structured logger
+  secrets: SecretStore;      // Encrypted credential vault
+}
+```
+
+## Writing a Plugin
+
+```typescript
+import type { CognitionPlugin, PluginDeps } from "@clawcolony/types";
+
+export class MyPlugin implements CognitionPlugin {
+  readonly name = "my-plugin";
+
+  private db!: Database;
+  private eventBus!: EventBus;
+
+  getMigrationSQL(): string {
+    return `
+      CREATE TABLE IF NOT EXISTS my_plugin_data (
+        id TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+  }
+
+  initialize(deps: PluginDeps): void {
+    this.db = deps.db;
+    this.eventBus = deps.eventBus;
+
+    // Subscribe to events
+    this.eventBus.subscribe("message:received", this.handleMessage.bind(this));
+  }
+
+  shutdown(): void {
+    // Cleanup resources
+  }
+
+  private handleMessage(event: MessageReceivedEvent): void {
+    // Process the event
+  }
+}
+```
+
+## Plugin Registration
+
+Plugins are registered in the colony configuration:
+
+```json
+{
+  "colony": {
+    "plugins": {
+      "memory": { "enabled": true },
+      "goals": { "enabled": true },
+      "predictions": { "enabled": true },
+      "my-plugin": { "enabled": true }
+    }
+  }
+}
+```
+
+The plugin loader:
+1. Discovers all plugins in the plugins directory
+2. Sorts by dependency order
+3. Runs migrations for each enabled plugin
+4. Calls `initialize()` with shared dependencies
+
+## Database Migrations
+
+Each plugin manages its own tables. Migrations are idempotent and run on every startup:
+
+```typescript
+getMigrationSQL(): string {
+  return `
+    -- Table creation is idempotent
+    CREATE TABLE IF NOT EXISTS my_table (...);
+
+    -- Indexes are idempotent
+    CREATE INDEX IF NOT EXISTS idx_my_table_field
+      ON my_table(field);
+
+    -- For schema changes, use versioned migrations
+    -- Check if column exists before adding
+    PRAGMA table_info(my_table);
+  `;
+}
+```
+
+For complex migrations, check schema version:
+
+```typescript
+getMigrationSQL(): string {
+  return `
+    -- Create version tracking table
+    CREATE TABLE IF NOT EXISTS my_plugin_schema (
+      version INTEGER PRIMARY KEY
+    );
+
+    -- Run migration if version not present
+    INSERT OR IGNORE INTO my_plugin_schema (version) VALUES (1);
+
+    -- Add column if migration 1 not yet applied
+    -- (handled in initialize() with PRAGMA table_info check)
+  `;
+}
+```
+
+## Event Bus Patterns
+
+### Publishing Events
+
+```typescript
+this.eventBus.publish({
+  type: "memory:stored",
+  payload: {
+    memoryId: "mem-123",
+    content: "User prefers dark mode",
+    importance: 0.9
+  },
+  timestamp: new Date().toISOString(),
+  source: this.name
+});
+```
+
+### Subscribing to Events
+
+```typescript
+// Typed subscription
+this.eventBus.subscribe("memory:stored", (event: MemoryStoredEvent) => {
+  console.log(`New memory: ${event.payload.content}`);
+});
+
+// Wildcard subscription
+this.eventBus.subscribe("memory:*", (event) => {
+  console.log(`Memory event: ${event.type}`);
+});
+```
+
+### Event Types
+
+Common event categories:
+
+| Prefix | Purpose | Example |
+| ------ | ------- | ------- |
+| `memory:` | Memory operations | `memory:stored`, `memory:recalled` |
+| `message:` | User messages | `message:received`, `message:sent` |
+| `task:` | Task lifecycle | `task:created`, `task:completed` |
+| `chain:` | Blockchain events | `chain:block_produced`, `chain:tx_confirmed` |
+| `mesh:` | Node coordination | `mesh:node_joined`, `mesh:election_started` |
+
+## Built-in Plugins
+
+### Cognitive Plugins (8)
+
+| Plugin | Purpose |
+| ------ | ------- |
+| `cognition-orchestrator` | Plugin lifecycle, decision arbitration |
+| `goal-engine` | Goal inference and decomposition |
+| `mind-model` | Theory of mind with Bayesian inference |
+| `predictive-engine` | Monte Carlo scenario projection |
+| `meta-learner` | Cognitive performance monitoring |
+| `continuous-learner` | Autonomous knowledge ingestion |
+| `synthesis-engine` | Cross-domain insight discovery |
+| `reasoning-verifier` | Pattern-based verification, fallacy detection |
+
+### Intelligence Plugins (8)
+
+| Plugin | Purpose |
+| ------ | ------- |
+| `tool-learner` | Tool preference model |
+| `self-reflector` | Response quality evaluation |
+| `session-continuity` | Context handoff between sessions |
+| `preference-learner` | Behavioral preference inference |
+| `anomaly-detector` | Baseline deviation detection |
+| `task-planner` | DAG-based task decomposition |
+| `research-orchestrator` | Multi-source research coordination |
+| `initiative-engine` | Autonomous action proposals |
+
+### Extended Plugins (8)
+
+| Plugin | Purpose |
+| ------ | ------- |
+| `relationships` | Relationship signals and tiers |
+| `briefings` | Daily, tactical, weekly briefings |
+| `world-model` | Entity graph management |
+| `health-tracker` | Biomarker tracking |
+| `behavioral-profiler` | Trait dimension scoring |
+| `meeting-intelligence` | Transcript processing |
+| `email-integration` | Draft lifecycle management |
+| `contact-sessions` | Per-contact scoped sessions |
+
+## Plugin Best Practices
+
+1. **Idempotent migrations**: Use `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`
+2. **No blocking in initialize()**: Defer heavy work to background tasks
+3. **Clean shutdown**: Release resources in `shutdown()`
+4. **Typed events**: Define interfaces for all event payloads
+5. **Scoped tables**: Prefix table names with plugin name to avoid collisions

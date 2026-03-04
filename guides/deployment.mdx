@@ -1,0 +1,402 @@
+---
+title: "Production Deployment"
+description: "Deploy ClawColony for production use with high availability"
+icon: "cloud"
+---
+
+This guide covers production deployment patterns for ClawColony.
+
+## Deployment Patterns
+
+### Single Node (Standalone)
+
+Simplest deployment. Good for personal use.
+
+```
+┌─────────────────────┐
+│  Your Machine       │
+│  ┌───────────────┐  │
+│  │   ClawColony  │  │
+│  │   (Standalone)│  │
+│  └───────────────┘  │
+└─────────────────────┘
+```
+
+```bash
+clawcolony init --standalone
+clawcolony gateway run
+```
+
+### Two Node (HA Pair)
+
+Queen + Regent for automatic failover.
+
+```
+┌─────────────────────┐     ┌─────────────────────┐
+│  VPS (Static IP)    │     │  VPS (Static IP)    │
+│  ┌───────────────┐  │     │  ┌───────────────┐  │
+│  │   ClawColony  │◄─┼─────┼──│   ClawColony  │  │
+│  │   (Queen)     │  │     │  │   (Regent)    │  │
+│  └───────────────┘  │     │  └───────────────┘  │
+└─────────────────────┘     └─────────────────────┘
+```
+
+Setup:
+1. Initialize Genesis on first VPS
+2. Generate Regent invite
+3. Join second VPS as Regent
+
+### Multi-Node (Team)
+
+Queen + Regent on VPS, Drones on team machines.
+
+```
+                    ┌─────────────┐
+                    │  Queen VPS  │
+                    └──────┬──────┘
+                           │
+              ┌────────────┼────────────┐
+              │            │            │
+       ┌──────┴─────┐ ┌────┴────┐ ┌────┴────┐
+       │ Regent VPS │ │  Drone  │ │  Drone  │
+       └────────────┘ │ (Alice) │ │  (Bob)  │
+                      └─────────┘ └─────────┘
+```
+
+### Enterprise (High Availability)
+
+Multiple datacenters with consensus quorum.
+
+```
+┌─────────────── Datacenter 1 ───────────────┐
+│                                             │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐    │
+│  │ Queen   │  │Sentinel │  │Sentinel │    │
+│  └────┬────┘  └────┬────┘  └────┬────┘    │
+│       └────────────┼────────────┘          │
+│                    │                        │
+└────────────────────┼────────────────────────┘
+                     │
+┌────────────────────┼────────────────────────┐
+│                    │                        │
+│  ┌─────────┐  ┌────┴────┐                  │
+│  │ Regent  │  │Sentinel │  Datacenter 2    │
+│  └─────────┘  └─────────┘                  │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+## VPS Setup
+
+### Recommended Providers
+
+- DigitalOcean
+- Linode
+- Vultr
+- Hetzner
+- AWS EC2
+
+### Minimum Specs
+
+| Role | CPU | RAM | Storage |
+| ---- | --- | --- | ------- |
+| Queen | 4 vCPU | 16GB | 200GB SSD |
+| Regent | 4 vCPU | 16GB | 200GB SSD |
+| Sentinel | 2 vCPU | 8GB | 100GB SSD |
+| Drone | 2 vCPU | 4GB | 50GB SSD |
+
+### Initial Server Setup
+
+```bash
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js 22
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Install ClawColony
+npm install -g clawcolony
+
+# Create service user
+sudo useradd -r -s /bin/false clawcolony
+```
+
+## Systemd Service
+
+Create `/etc/systemd/system/clawcolony.service`:
+
+```ini
+[Unit]
+Description=ClawColony Gateway
+After=network.target
+
+[Service]
+Type=simple
+User=clawcolony
+Group=clawcolony
+Environment=CLAWCOLONY_HOME=/var/lib/clawcolony
+ExecStart=/usr/bin/clawcolony gateway run
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable clawcolony
+sudo systemctl start clawcolony
+```
+
+## Firewall Configuration
+
+```bash
+# Allow gateway
+sudo ufw allow 18791/tcp
+
+# Allow WebSocket
+sudo ufw allow 18792/tcp
+
+# Allow gossip
+sudo ufw allow 18793/udp
+
+# Enable firewall
+sudo ufw enable
+```
+
+## Reverse Proxy (Nginx)
+
+For HTTPS termination:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name colony.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/colony.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/colony.example.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:18791;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /ws {
+        proxy_pass http://127.0.0.1:18792;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+## SSL/TLS
+
+### Let's Encrypt
+
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d colony.example.com
+```
+
+### Self-Signed (Internal)
+
+```bash
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/private/colony.key \
+  -out /etc/ssl/certs/colony.crt
+```
+
+## Monitoring
+
+### Health Checks
+
+Add to monitoring system:
+
+```bash
+#!/bin/bash
+# healthcheck.sh
+response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18791/health)
+if [ "$response" != "200" ]; then
+  echo "ClawColony unhealthy: HTTP $response"
+  exit 1
+fi
+```
+
+### Prometheus Metrics
+
+ClawColony exposes metrics at `/metrics`:
+
+```yaml
+# prometheus.yml
+scrape_configs:
+  - job_name: 'clawcolony'
+    static_configs:
+      - targets: ['localhost:18791']
+    metrics_path: /metrics
+```
+
+### Log Aggregation
+
+Ship logs to your SIEM:
+
+```bash
+# Filebeat example
+filebeat.inputs:
+- type: log
+  paths:
+    - /var/lib/clawcolony/logs/*.log
+```
+
+## Backup Strategy
+
+### Automated Backups
+
+```bash
+#!/bin/bash
+# /etc/cron.daily/clawcolony-backup
+
+BACKUP_DIR=/var/backups/clawcolony
+DATE=$(date +%Y%m%d)
+
+mkdir -p $BACKUP_DIR
+
+# Stop briefly for consistent backup
+systemctl stop clawcolony
+
+# Backup database
+cp /var/lib/clawcolony/colony/colony.db $BACKUP_DIR/colony-$DATE.db
+
+# Backup config
+cp /var/lib/clawcolony/clawcolony.json $BACKUP_DIR/config-$DATE.json
+
+# Restart
+systemctl start clawcolony
+
+# Cleanup old backups (keep 30 days)
+find $BACKUP_DIR -mtime +30 -delete
+```
+
+### Off-site Backup
+
+```bash
+# Sync to S3
+aws s3 sync /var/backups/clawcolony s3://my-bucket/clawcolony-backups/
+```
+
+## Security Hardening
+
+### SSH
+
+```bash
+# Disable password auth
+sudo sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo systemctl restart sshd
+```
+
+### Fail2ban
+
+```bash
+sudo apt install fail2ban
+sudo systemctl enable fail2ban
+```
+
+### Automatic Updates
+
+```bash
+sudo apt install unattended-upgrades
+sudo dpkg-reconfigure unattended-upgrades
+```
+
+## Scaling
+
+### Horizontal Scaling
+
+Add more Drone nodes for task processing:
+
+```bash
+# On new machine
+clawcolony node join <token>
+```
+
+### Vertical Scaling
+
+Upgrade VPS specs:
+1. Stop gateway
+2. Resize VPS
+3. Start gateway
+
+### Load Balancing
+
+For multiple entry points:
+
+```nginx
+upstream clawcolony {
+    server node1:18791;
+    server node2:18791;
+}
+
+server {
+    location / {
+        proxy_pass http://clawcolony;
+    }
+}
+```
+
+## Disaster Recovery
+
+### Recovery Checklist
+
+1. [ ] Identify failure scope
+2. [ ] Check if Regent took over
+3. [ ] Restore from backup if needed
+4. [ ] Verify chain integrity
+5. [ ] Re-join nodes if necessary
+
+### Recovery Procedure
+
+```bash
+# 1. Check status
+clawcolony status
+
+# 2. If Queen lost, Regent should take over automatically
+
+# 3. If full restore needed:
+systemctl stop clawcolony
+cp /var/backups/clawcolony/colony-latest.db /var/lib/clawcolony/colony/colony.db
+systemctl start clawcolony
+
+# 4. Verify
+clawcolony doctor
+clawcolony chain status
+```
+
+## Upgrade Procedure
+
+### Rolling Upgrade
+
+1. Upgrade Drones first
+2. Upgrade Sentinels
+3. Upgrade Regent
+4. Upgrade Queen (brief downtime)
+
+```bash
+# On each node
+sudo systemctl stop clawcolony
+npm update -g clawcolony
+sudo systemctl start clawcolony
+```
+
+### Blue-Green Deployment
+
+1. Set up new cluster
+2. Sync data
+3. Switch DNS
+4. Decommission old cluster

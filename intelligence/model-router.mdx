@@ -1,0 +1,244 @@
+---
+title: "Model Router"
+description: "4-layer routing with 5 model tiers for cost-effective intelligence"
+icon: "route"
+---
+
+The Model Router selects the appropriate model for each task based on complexity, cost, and capabilities. It uses a 4-layer routing system with 5 model tiers.
+
+## Model Tiers
+
+| Tier | Name | Example Models | Use Case |
+| ---- | ---- | -------------- | -------- |
+| 1 | None | Local/Ollama (phi3) | Simple lookups, formatting |
+| 2 | Minimal | Claude Haiku | Quick responses, simple tasks |
+| 3 | Standard | Claude Sonnet | Most tasks, good balance |
+| 4 | Enhanced | Claude Opus | Complex reasoning, important tasks |
+| 5 | Maximum | Claude Opus + tools | Critical tasks, full capability |
+
+## 4-Layer Routing
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Model Router                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Layer 1: Task-Type Routing                                 │
+│  ─────────────────────────                                  │
+│  Match task type to minimum required tier                   │
+│                                                              │
+│  Layer 2: Complexity Assessment                             │
+│  ─────────────────────────────                              │
+│  Analyze input to determine actual complexity               │
+│                                                              │
+│  Layer 3: Cascade Strategy                                  │
+│  ────────────────────────                                   │
+│  Try lower tier first, escalate if needed                   │
+│                                                              │
+│  Layer 4: Feedback Integration                              │
+│  ──────────────────────────                                 │
+│  Learn from past routing decisions                          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Layer 1: Task-Type Routing
+
+Default tier assignments by task type:
+
+| Task Type | Default Tier |
+| --------- | ------------ |
+| Greeting/small talk | 1 (None) |
+| Factual lookup | 2 (Minimal) |
+| Summarization | 2 (Minimal) |
+| Code generation | 3 (Standard) |
+| Analysis | 3 (Standard) |
+| Complex reasoning | 4 (Enhanced) |
+| Critical decisions | 5 (Maximum) |
+
+### Layer 2: Complexity Assessment
+
+Factors that increase tier:
+
+| Factor | Tier Increase |
+| ------ | ------------- |
+| Long input (>10k tokens) | +1 |
+| Multiple entities | +1 |
+| Technical domain | +1 |
+| Ambiguous request | +1 |
+| User flagged important | +1 |
+
+### Layer 3: Cascade Strategy
+
+Start low, escalate if needed:
+
+1. Route to initial tier
+2. Check response quality
+3. If below threshold, retry with higher tier
+4. Track escalation patterns
+
+```typescript
+interface CascadeConfig {
+  enabled: boolean;
+  qualityThreshold: number;    // 0.0 to 1.0
+  maxEscalations: number;      // Max tier jumps
+  budgetCapMonthly: number;    // Cost limit
+}
+```
+
+### Layer 4: Feedback Integration
+
+Learn from routing decisions:
+
+- Track success rate per task-type/tier combo
+- Adjust default tiers based on outcomes
+- Identify under/over-provisioning patterns
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "router": {
+      "tierModels": {
+        "1": "ollama/phi3",
+        "2": "claude-haiku-4-5-20251001",
+        "3": "claude-sonnet-4-6",
+        "4": "claude-opus-4-6",
+        "5": "claude-opus-4-6"
+      },
+      "cascade": {
+        "enabled": true,
+        "qualityThreshold": 0.7,
+        "maxEscalations": 2,
+        "budgetCapMonthly": 50.0
+      },
+      "taskDefaults": {
+        "greeting": 1,
+        "lookup": 2,
+        "summary": 2,
+        "code": 3,
+        "analysis": 3,
+        "reasoning": 4,
+        "critical": 5
+      }
+    }
+  }
+}
+```
+
+## Budget Management
+
+The router tracks costs and enforces limits:
+
+```typescript
+interface BudgetStatus {
+  monthlyBudget: number;
+  spent: number;
+  remaining: number;
+  daysRemaining: number;
+  projectedOverage: number;
+  recommendations: string[];
+}
+```
+
+When approaching budget limits:
+1. Cascade becomes more aggressive (start lower)
+2. Tier 4/5 tasks queue for batch processing
+3. User notified of budget status
+
+## Provider Support
+
+All providers inherited from OpenClaw:
+
+| Provider | Models |
+| -------- | ------ |
+| Anthropic | Claude Opus, Sonnet, Haiku |
+| OpenAI | GPT-4o, GPT-4 Turbo, o1 series |
+| Google | Gemini 1.5 Pro, Gemini 1.5 Flash |
+| Mistral | Mistral Large, Mistral Medium |
+| Local | Ollama (any GGUF model) |
+| Compatible | Any OpenAI-compatible endpoint |
+| Cloud | AWS Bedrock, Moonshot/Kimi |
+
+## Router Interface
+
+```typescript
+interface ModelRouter {
+  /** Route a task to appropriate model */
+  route(task: Task): Promise<RoutingDecision>;
+
+  /** Get current budget status */
+  getBudgetStatus(): BudgetStatus;
+
+  /** Override routing for specific task */
+  override(taskId: string, tier: number): void;
+
+  /** Get routing statistics */
+  getStats(): RoutingStats;
+}
+
+interface RoutingDecision {
+  tier: number;
+  model: string;
+  estimatedCost: number;
+  reasoning: string;
+  cascadeAllowed: boolean;
+}
+```
+
+## Routing Statistics
+
+```bash
+clawcolony router stats
+```
+
+Output:
+
+```
+Routing Statistics (Last 30 days)
+
+Tier Distribution:
+  Tier 1 (None):     2,847 tasks (34%)
+  Tier 2 (Minimal):  3,102 tasks (37%)
+  Tier 3 (Standard): 1,891 tasks (23%)
+  Tier 4 (Enhanced):   412 tasks (5%)
+  Tier 5 (Maximum):     98 tasks (1%)
+
+Cascade Events:
+  Escalations: 234 (2.8%)
+  Avg escalation tier jump: 1.2
+
+Cost Summary:
+  Total spend: $42.50
+  Budget: $50.00
+  Remaining: $7.50
+  Days left: 8
+```
+
+## Quality Feedback
+
+Report routing quality to improve decisions:
+
+```typescript
+router.reportQuality(taskId, {
+  success: true,
+  userSatisfaction: 0.9,
+  responseQuality: 0.85,
+  wouldUpgrade: false
+});
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Intelligence Overview" icon="lightbulb" href="/intelligence/overview">
+    All cognitive components.
+  </Card>
+  <Card title="Pricing Oracle" icon="calculator" href="/economy/pricing">
+    Complexity scoring.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/reference/configuration">
+    Full config reference.
+  </Card>
+</CardGroup>

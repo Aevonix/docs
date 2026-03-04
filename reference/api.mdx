@@ -1,0 +1,309 @@
+---
+title: "API Reference"
+description: "HTTP API endpoints for the ClawColony gateway"
+icon: "code"
+---
+
+The ClawColony gateway exposes HTTP API endpoints for programmatic access.
+
+## Base URL
+
+```
+http://localhost:18791
+```
+
+## Authentication
+
+Most endpoints require authentication via bearer token:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:18791/colony/v1/status
+```
+
+## Health Endpoints
+
+### GET /health
+
+Basic liveness check.
+
+```bash
+curl http://localhost:18791/health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "version": "1.0.0"
+}
+```
+
+## Colony Endpoints
+
+### GET /colony/v1/status
+
+Colony status summary.
+
+```bash
+curl http://localhost:18791/colony/v1/status
+```
+
+Response:
+```json
+{
+  "colonyId": "3a2b1c4d...",
+  "name": "My Colony",
+  "role": "queen",
+  "nodeCount": 3,
+  "chainHeight": 1247,
+  "memoryCount": 5892,
+  "uptime": 86400
+}
+```
+
+### GET /colony/v1/chain/status
+
+Chain metrics.
+
+```bash
+curl http://localhost:18791/colony/v1/chain/status
+```
+
+Response:
+```json
+{
+  "height": 1247,
+  "tipHash": "8a3f2b1c...",
+  "blockRate": 2.0,
+  "txRate": 15.3,
+  "mempoolSize": 3,
+  "consensus": "leader",
+  "term": 42,
+  "totalBurned": 1234,
+  "genesisTax": 987
+}
+```
+
+### GET /colony/v1/mesh/status
+
+Mesh connectivity.
+
+```bash
+curl http://localhost:18791/colony/v1/mesh/status
+```
+
+Response:
+```json
+{
+  "nodeId": "node-a1b2",
+  "role": "queen",
+  "peerCount": 2,
+  "peers": [
+    { "id": "node-c3d4", "role": "regent", "status": "online" },
+    { "id": "node-e5f6", "role": "drone", "status": "online" }
+  ]
+}
+```
+
+## Memory Endpoints
+
+### GET /colony/v1/memories
+
+List memories.
+
+Query parameters:
+- `limit`: Max results (default: 20)
+- `offset`: Pagination offset
+- `type`: Filter by type
+
+```bash
+curl "http://localhost:18791/colony/v1/memories?limit=10"
+```
+
+### GET /colony/v1/memories/:id
+
+Get specific memory.
+
+```bash
+curl http://localhost:18791/colony/v1/memories/mem-123
+```
+
+### POST /colony/v1/memories/search
+
+Search memories.
+
+```bash
+curl -X POST http://localhost:18791/colony/v1/memories/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "project status", "limit": 10}'
+```
+
+## Node Endpoints
+
+### GET /colony/v1/nodes
+
+List nodes.
+
+```bash
+curl http://localhost:18791/colony/v1/nodes
+```
+
+### POST /colony/v1/nodes/invite
+
+Generate invite token.
+
+```bash
+curl -X POST http://localhost:18791/colony/v1/nodes/invite \
+  -H "Content-Type: application/json" \
+  -d '{"role": "drone", "expiresIn": "7d"}'
+```
+
+### DELETE /colony/v1/nodes/:id
+
+Revoke node.
+
+```bash
+curl -X DELETE http://localhost:18791/colony/v1/nodes/node-e5f6 \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "Decommissioned"}'
+```
+
+## Economy Endpoints
+
+### GET /colony/v1/economy/balance
+
+Get balance.
+
+```bash
+curl http://localhost:18791/colony/v1/economy/balance
+```
+
+Response:
+```json
+{
+  "balance": 500.0,
+  "staked": 100.0,
+  "available": 400.0
+}
+```
+
+### GET /colony/v1/economy/transactions
+
+Transaction history.
+
+```bash
+curl "http://localhost:18791/colony/v1/economy/transactions?limit=20"
+```
+
+## Federation Endpoints
+
+### GET /colony/v1/federation/peers
+
+List federation peers.
+
+```bash
+curl http://localhost:18791/colony/v1/federation/peers
+```
+
+### POST /colony/v1/federation/pair
+
+Request pairing.
+
+```bash
+curl -X POST http://localhost:18791/colony/v1/federation/pair \
+  -H "Content-Type: application/json" \
+  -d '{"colonyId": "7e8f9a0b...", "trustLevel": 2}'
+```
+
+## Message Endpoints
+
+### POST /colony/v1/messages
+
+Send message to colony.
+
+```bash
+curl -X POST http://localhost:18791/colony/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Hello, colony!", "channel": "api"}'
+```
+
+Response:
+```json
+{
+  "messageId": "msg-123",
+  "response": "Hello! How can I help you today?",
+  "memories_used": 3
+}
+```
+
+## WebSocket
+
+### ws://localhost:18792
+
+Real-time communication via WebSocket.
+
+Connect:
+```javascript
+const ws = new WebSocket("ws://localhost:18792");
+
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+  console.log(message);
+};
+
+ws.send(JSON.stringify({
+  type: "message",
+  content: "Hello!"
+}));
+```
+
+Message types:
+- `message`: User message
+- `status`: Status update
+- `memory_update`: Memory changed
+- `node_event`: Node joined/left
+
+## Error Responses
+
+Errors follow consistent format:
+
+```json
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Memory not found",
+    "details": {}
+  }
+}
+```
+
+HTTP status codes:
+- `400`: Bad request
+- `401`: Unauthorized
+- `403`: Forbidden
+- `404`: Not found
+- `429`: Rate limited
+- `500`: Internal error
+
+## Rate Limiting
+
+Endpoints are rate-limited:
+- Default: 100 requests/minute
+- Search: 20 requests/minute
+- Write: 50 requests/minute
+
+Rate limit headers:
+- `X-RateLimit-Limit`
+- `X-RateLimit-Remaining`
+- `X-RateLimit-Reset`
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/reference/cli">
+    CLI commands.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/reference/configuration">
+    Config options.
+  </Card>
+</CardGroup>

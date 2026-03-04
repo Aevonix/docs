@@ -1,0 +1,196 @@
+---
+title: "Node Roles"
+description: "Queen, Regent, Sentinel, and Drone responsibilities and permissions"
+icon: "users"
+---
+
+Each node in a Colony has a role that determines its signing authority and responsibilities. Roles form a hierarchy from Queen (full authority) to Drone (worker only).
+
+## Role Hierarchy
+
+```
+Queen (1 per colony)
+  │
+  ├── Regent (0-1, hot standby)
+  │
+  ├── Sentinel (0+, validators)
+  │
+  └── Drone (0+, workers)
+```
+
+## Role Details
+
+### Queen
+
+The primary coordinator for the colony. Only one Queen exists at a time.
+
+**Responsibilities:**
+- Produces blocks for ColonyChain
+- Represents the colony in external communications
+- Issues certificates to new nodes
+- Initiates governance proposals
+- Coordinates task routing across the mesh
+
+**Authority:**
+- Full signing authority for all operations
+- Can promote/demote other nodes
+- Can revoke certificates
+- Can halt block production in emergencies
+
+### Regent
+
+Hot standby for the Queen. Takes over immediately if Queen fails.
+
+**Responsibilities:**
+- Monitors Queen health via heartbeat
+- Maintains full signing capability
+- Can take over Queen duties within 30 seconds
+- Participates in consensus
+
+**Authority:**
+- Full signing authority (same as Queen)
+- Cannot initiate governance while Queen is active
+- Automatically promotes to Queen on Queen failure
+
+### Sentinel
+
+Validator nodes that participate in consensus but cannot lead.
+
+**Responsibilities:**
+- Validates blocks and transactions
+- Issues attestations
+- Participates in Raft consensus
+- Reports suspicious activity
+
+**Authority:**
+- Can sign blocks (validation)
+- Can sign attestations
+- Cannot initiate governance
+- Cannot produce blocks
+
+### Drone
+
+Worker nodes that execute tasks. No signing authority.
+
+**Responsibilities:**
+- Executes assigned tasks
+- Reports task results
+- Provides compute capacity
+- Stores local memory cache
+
+**Authority:**
+- Can sign task results only
+- Can sign mesh messages
+- No blockchain operations
+- No attestation capability
+
+## Authority Scope
+
+Each node certificate specifies 7 boolean permissions:
+
+```typescript
+interface AuthorityScope {
+  can_sign_blocks: boolean;
+  can_sign_transactions: boolean;
+  can_sign_governance: boolean;
+  can_sign_attestations: boolean;
+  can_sign_name_ops: boolean;
+  can_sign_task_results: boolean;
+  can_sign_mesh_messages: boolean;
+}
+```
+
+### Permission by Role
+
+| Permission | Queen | Regent | Sentinel | Drone |
+| ---------- | :---: | :----: | :------: | :---: |
+| `can_sign_blocks` | Yes | Yes | Yes | No |
+| `can_sign_transactions` | Yes | Yes | Yes | No |
+| `can_sign_governance` | Yes | Yes | No | No |
+| `can_sign_attestations` | Yes | Yes | Yes | No |
+| `can_sign_name_ops` | Yes | Yes | No | No |
+| `can_sign_task_results` | Yes | Yes | Yes | Yes |
+| `can_sign_mesh_messages` | Yes | Yes | Yes | Yes |
+
+## Managing Nodes
+
+### Adding a Node
+
+Generate an invite token on the Queen:
+
+```bash
+clawcolony node invite --role drone
+```
+
+On the joining machine:
+
+```bash
+clawcolony node join <token>
+```
+
+### Listing Nodes
+
+```bash
+clawcolony node list
+```
+
+Example output:
+
+```
+Colony: Research Colony (golden)
+
+ID          Role        Status    Hardware      RAM     Models              Last Seen
+────────────────────────────────────────────────────────────────────────────────────────
+node-a1b2   queen       online    M2 Max 12c    96GB    claude-opus         now
+node-c3d4   regent      online    M1 Pro 10c    32GB    claude-sonnet       3s ago
+node-e5f6   drone       online    Intel i7 8c   16GB    phi3                12s ago
+
+Signing keys: Queen (full) + Regent (full)
+Sentinel: none configured
+Mode: full
+Chain height: 1,247
+```
+
+### Promoting a Node
+
+Promote a drone to regent:
+
+```bash
+clawcolony node promote node-e5f6 --role regent
+```
+
+### Demoting a Node
+
+Demote a regent to drone:
+
+```bash
+clawcolony node demote node-c3d4
+```
+
+### Revoking a Node
+
+Revoke a node's certificate immediately:
+
+```bash
+clawcolony node revoke node-e5f6 --reason "decommissioned"
+```
+
+This terminates the node's ability to participate in the mesh. Revocation propagates via gossip within seconds.
+
+## Best Practices
+
+1. **Always have a Regent**: Without a Regent, Queen failure triggers a full election (1-5 minutes downtime)
+2. **VPS for Queen**: Run Queen on a VPS with static IP for reliable connectivity
+3. **Keep Drones updated**: Ensure all Drones run the same ClawColony version
+4. **Monitor certificate expiry**: Certificates expire after 30 days by default
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Leader Election" icon="crown" href="/mesh/election">
+    What happens when Queen fails.
+  </Card>
+  <Card title="Certificates" icon="certificate" href="/mesh/certificates">
+    Node certificate system.
+  </Card>
+</CardGroup>

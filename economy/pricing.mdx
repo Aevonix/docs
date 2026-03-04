@@ -1,0 +1,211 @@
+---
+title: "Pricing Oracle"
+description: "Complexity scoring and task pricing based on compute requirements"
+icon: "calculator"
+---
+
+The Complexity Oracle scores tasks from 0.0 to 1.0 based on their compute requirements. This score determines the price for inter-colony task delegation.
+
+## Complexity Formula
+
+```
+price = complexity × rateMultiplier
+```
+
+Where:
+- `complexity`: 0.0 to 1.0 score from the oracle
+- `rateMultiplier`: Default 50 CC
+
+Example: A task with 0.6 complexity costs `0.6 × 50 = 30 CC`.
+
+## Scoring Factors
+
+The oracle considers four factors:
+
+### 1. Token Count (40% weight)
+
+Input and expected output tokens:
+
+```typescript
+tokenScore = (inputTokens + expectedOutputTokens) / maxTokens
+```
+
+| Token Range | Score Contribution |
+| ----------- | ------------------ |
+| 0-1,000 | 0.0-0.1 |
+| 1,000-10,000 | 0.1-0.3 |
+| 10,000-50,000 | 0.3-0.7 |
+| 50,000-100,000 | 0.7-0.9 |
+| 100,000+ | 0.9-1.0 |
+
+### 2. Required Capabilities (25% weight)
+
+Special capabilities increase complexity:
+
+| Capability | Score Addition |
+| ---------- | -------------- |
+| Basic text | +0.0 |
+| Code generation | +0.1 |
+| Vision/image analysis | +0.2 |
+| Tool use | +0.15 |
+| Multi-step reasoning | +0.2 |
+| Research/web search | +0.15 |
+
+### 3. Historical Completion Time (20% weight)
+
+Based on similar past tasks:
+
+```typescript
+timeScore = historicalMs / maxExpectedMs
+```
+
+Tasks that historically take longer cost more.
+
+### 4. Model Tier (15% weight)
+
+Higher model tiers cost more:
+
+| Tier | Model Example | Score Contribution |
+| ---- | ------------- | ------------------ |
+| 1 (None) | Local/Ollama | 0.0 |
+| 2 (Minimal) | Haiku | 0.05 |
+| 3 (Standard) | Sonnet | 0.10 |
+| 4 (Enhanced) | Opus | 0.15 |
+| 5 (Maximum) | Opus + tools | 0.20 |
+
+## Complexity Score Interface
+
+```typescript
+interface ComplexityScore {
+  // Input factors
+  inputTokens: number;
+  expectedOutputTokens: number;
+  capabilities: string[];
+  historicalMs: number;
+  requiredTier: ModelTier;
+
+  // Calculated scores
+  tokenScore: number;
+  capabilityScore: number;
+  timeScore: number;
+  tierScore: number;
+
+  // Final score
+  score: number;           // 0.0 to 1.0
+  confidence: number;      // How confident the estimate is
+  breakdown: string;       // Human-readable explanation
+}
+```
+
+## Price Calculation Example
+
+Task: Generate code with vision analysis
+
+```
+Input tokens:     5,000   → tokenScore: 0.2
+Output tokens:    2,000   → (added to token score)
+Capabilities:     code, vision → capabilityScore: 0.3
+Historical time:  45 seconds → timeScore: 0.3
+Model tier:       Standard (3) → tierScore: 0.10
+
+Weighted score:
+  tokens:      0.2 × 0.40 = 0.08
+  capability:  0.3 × 0.25 = 0.075
+  time:        0.3 × 0.20 = 0.06
+  tier:        0.1 × 0.15 = 0.015
+
+Total complexity: 0.23
+
+Price: 0.23 × 50 CC = 11.5 CC
+```
+
+## Escrow System
+
+When a colony requests a task:
+
+1. **Quote**: Oracle calculates complexity and price
+2. **Lock**: Requesting colony locks payment in escrow
+3. **Execute**: Provider colony performs task
+4. **Verify**: Task completion verified
+5. **Release**: Escrow released to provider
+
+```
+┌────────────┐     lock      ┌────────────┐    execute   ┌────────────┐
+│ Requester  │──────────────►│   Escrow   │─────────────►│  Provider  │
+└────────────┘               └────────────┘              └────────────┘
+                                   │
+                                   │ release on success
+                                   ▼
+                             ┌────────────┐
+                             │  Provider  │
+                             │  Balance   │
+                             └────────────┘
+```
+
+If the task fails or times out, escrow returns to requester (minus any partial work credit).
+
+## Dynamic Pricing
+
+The oracle adjusts pricing based on market conditions:
+
+### Supply/Demand
+
+When demand exceeds supply:
+- `rateMultiplier` increases
+- High-complexity tasks priced higher
+
+When supply exceeds demand:
+- `rateMultiplier` decreases
+- Prices stabilize
+
+### Historical Accuracy
+
+The oracle learns from actual task performance:
+- Tasks that take longer than estimated increase future estimates
+- Tasks that complete faster decrease future estimates
+
+## CLI Commands
+
+```bash
+# Get price estimate for a task
+clawcolony economy quote --task-type "code_generation" --tokens 5000
+
+# View pricing history
+clawcolony economy pricing-history --days 7
+```
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "economy": {
+      "pricing": {
+        "rateMultiplier": 50,
+        "weights": {
+          "tokens": 0.40,
+          "capabilities": 0.25,
+          "time": 0.20,
+          "tier": 0.15
+        },
+        "maxTokens": 200000,
+        "maxExpectedMs": 300000
+      }
+    }
+  }
+}
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="ColonyCoin" icon="coins" href="/economy/colonycoin">
+    Currency mechanics.
+  </Card>
+  <Card title="Model Router" icon="route" href="/intelligence/model-router">
+    Model tier selection.
+  </Card>
+  <Card title="Federation" icon="globe" href="/networking/federation">
+    Inter-colony task delegation.
+  </Card>
+</CardGroup>

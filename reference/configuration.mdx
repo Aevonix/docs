@@ -1,0 +1,246 @@
+---
+title: "Configuration Reference"
+description: "Complete configuration file reference"
+icon: "gear"
+---
+
+Configuration lives in `~/.clawcolony/clawcolony.json`. Edit directly or use `clawcolony config set`.
+
+## Full Configuration
+
+```json
+{
+  "gateway": {
+    "port": 18791,
+    "bind": "127.0.0.1",
+    "cors": ["http://localhost:3000"]
+  },
+  "colony": {
+    "root": "~/.clawcolony/colony",
+    "ws": {
+      "port": 18792
+    },
+    "memory": {
+      "decay": {
+        "baseLambda": 0.16,
+        "importanceWeight": 0.8,
+        "recallBoostFactor": 0.2,
+        "pruneThreshold": 0.05,
+        "protectedTypes": ["identity"]
+      },
+      "extraction": {
+        "enabled": true,
+        "sensitivity": 0.5
+      },
+      "consolidation": {
+        "mergeThreshold": 0.85
+      },
+      "prediction": {
+        "enabled": true,
+        "maxPreloaded": 10
+      },
+      "federation": {
+        "enabled": false,
+        "defaultScope": "summary"
+      }
+    },
+    "embeddings": {
+      "enabled": false,
+      "provider": "ollama",
+      "model": "nomic-embed-text",
+      "batchSize": 32
+    },
+    "router": {
+      "tierModels": {
+        "1": "ollama/phi3",
+        "2": "claude-haiku-4-5-20251001",
+        "3": "claude-sonnet-4-6",
+        "4": "claude-opus-4-6"
+      },
+      "cascade": {
+        "enabled": true,
+        "budgetCapMonthly": 50.0
+      }
+    },
+    "security": {
+      "enabled": true,
+      "inputSanitizer": {
+        "enabled": true
+      },
+      "outputGate": {
+        "enabled": true
+      },
+      "trustManager": {
+        "defaultTier": 3
+      }
+    },
+    "network": {
+      "mode": "private",
+      "gossip": {
+        "enabled": false,
+        "port": 18793,
+        "protocolPeriodMs": 1000,
+        "suspicionTimeoutMs": 5000,
+        "deathTimeoutMs": 30000,
+        "staticPeers": [],
+        "dnsSeedDomains": [
+          "seed1.clawcolony.network",
+          "seed2.clawcolony.network"
+        ]
+      },
+      "mesh": {
+        "enabled": false,
+        "heartbeatIntervalMs": 5000,
+        "taskTimeoutSeconds": 300
+      }
+    },
+    "chain": {
+      "blockIntervalMs": 30000,
+      "maxTxPerBlock": 500,
+      "genesisTaxRate": 0.01,
+      "burnRate": 0.01,
+      "checkpointInterval": 100
+    },
+    "cognitive": {
+      "orchestrator": { "enabled": true },
+      "goals": { "enabled": true },
+      "predictions": { "enabled": true },
+      "metalearner": { "enabled": true },
+      "mindModel": {
+        "enabled": true,
+        "ethicalGuardrails": true
+      },
+      "synthesis": { "enabled": true },
+      "continuousLearner": { "enabled": false },
+      "reasoning": { "enabled": true }
+    }
+  }
+}
+```
+
+## Section Reference
+
+### Gateway
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `gateway.port` | number | 18791 | HTTP API port |
+| `gateway.bind` | string | "127.0.0.1" | Bind address |
+| `gateway.cors` | string[] | [] | Allowed CORS origins |
+
+### Colony Root
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `colony.root` | string | "~/.clawcolony/colony" | Data directory |
+| `colony.ws.port` | number | 18792 | WebSocket port |
+
+### Memory
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `memory.decay.baseLambda` | number | 0.16 | Decay rate |
+| `memory.decay.importanceWeight` | number | 0.8 | Importance factor |
+| `memory.decay.recallBoostFactor` | number | 0.2 | Recall boost |
+| `memory.decay.pruneThreshold` | number | 0.05 | Prune below this |
+| `memory.decay.protectedTypes` | string[] | ["identity"] | No-decay types |
+| `memory.extraction.enabled` | boolean | true | Enable extraction |
+| `memory.extraction.sensitivity` | number | 0.5 | Extraction sensitivity |
+| `memory.consolidation.mergeThreshold` | number | 0.85 | Dedup threshold |
+| `memory.prediction.enabled` | boolean | true | Enable prediction |
+| `memory.prediction.maxPreloaded` | number | 10 | Max preloaded |
+
+### Embeddings
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `embeddings.enabled` | boolean | false | Enable embeddings |
+| `embeddings.provider` | string | "ollama" | Provider |
+| `embeddings.model` | string | "nomic-embed-text" | Model |
+| `embeddings.batchSize` | number | 32 | Batch size |
+
+### Router
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `router.tierModels` | object | See above | Model per tier |
+| `router.cascade.enabled` | boolean | true | Enable cascade |
+| `router.cascade.budgetCapMonthly` | number | 50.0 | Monthly budget |
+
+### Security
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `security.enabled` | boolean | true | Enable security |
+| `security.inputSanitizer.enabled` | boolean | true | Enable sanitizer |
+| `security.outputGate.enabled` | boolean | true | Enable output gate |
+| `security.trustManager.defaultTier` | number | 3 | Default trust level |
+
+### Network
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `network.mode` | string | "private" | Network mode |
+| `network.gossip.enabled` | boolean | false | Enable gossip |
+| `network.gossip.port` | number | 18793 | Gossip port |
+| `network.gossip.protocolPeriodMs` | number | 1000 | SWIM period |
+| `network.gossip.suspicionTimeoutMs` | number | 5000 | Suspect timeout |
+| `network.gossip.deathTimeoutMs` | number | 30000 | Death timeout |
+| `network.mesh.enabled` | boolean | false | Enable mesh |
+| `network.mesh.heartbeatIntervalMs` | number | 5000 | Heartbeat interval |
+
+### Chain
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `chain.blockIntervalMs` | number | 30000 | Block interval |
+| `chain.maxTxPerBlock` | number | 500 | Max transactions |
+| `chain.genesisTaxRate` | number | 0.01 | 1% genesis tax |
+| `chain.burnRate` | number | 0.01 | 1% burn rate |
+| `chain.checkpointInterval` | number | 100 | Checkpoint blocks |
+
+### Cognitive
+
+| Key | Type | Default | Description |
+| --- | ---- | ------- | ----------- |
+| `cognitive.orchestrator.enabled` | boolean | true | Enable orchestrator |
+| `cognitive.goals.enabled` | boolean | true | Enable goals |
+| `cognitive.predictions.enabled` | boolean | true | Enable predictions |
+| `cognitive.metalearner.enabled` | boolean | true | Enable metalearner |
+| `cognitive.mindModel.enabled` | boolean | true | Enable mind model |
+| `cognitive.mindModel.ethicalGuardrails` | boolean | true | Ethics checks |
+| `cognitive.synthesis.enabled` | boolean | true | Enable synthesis |
+| `cognitive.continuousLearner.enabled` | boolean | false | Enable learner |
+| `cognitive.reasoning.enabled` | boolean | true | Enable reasoning |
+
+## Environment Variables
+
+| Variable | Description | Default |
+| -------- | ----------- | ------- |
+| `CLAWCOLONY_HOME` | Data directory | `~/.clawcolony` |
+| `CLAWCOLONY_PORT` | Gateway port | `18791` |
+| `CLAWCOLONY_CONFIG` | Config file path | `~/.clawcolony/clawcolony.json` |
+
+## Using CLI
+
+```bash
+# Get value
+clawcolony config get gateway.port
+
+# Set value
+clawcolony config set gateway.port 18795
+
+# List all
+clawcolony config list
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="CLI Reference" icon="terminal" href="/reference/cli">
+    All CLI commands.
+  </Card>
+  <Card title="API Reference" icon="code" href="/reference/api">
+    HTTP API endpoints.
+  </Card>
+</CardGroup>

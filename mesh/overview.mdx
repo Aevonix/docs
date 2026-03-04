@@ -1,0 +1,125 @@
+---
+title: "Colony Mesh Overview"
+description: "Multi-node coordination with Queen, Regent, and Drone roles"
+icon: "network-wired"
+---
+
+A Colony is a network of nodes coordinated by the Queen. Each node has a role that determines its signing authority and responsibilities. The mesh provides automatic failover, task routing, and capability-based assignment.
+
+## Node Roles
+
+| Role | Description | Block Signing | Governance | Attestation |
+| ---- | ----------- | :-----------: | :--------: | :---------: |
+| Queen | Primary coordinator. Produces blocks. Represents colony externally. | Yes | Yes | Yes |
+| Regent | Hot standby. Full signing keys. Takes over if Queen fails. | Yes | Yes | Yes |
+| Sentinel | Consensus participant. Can attest but not initiate governance. | Yes | No | Yes |
+| Drone | Worker node. Executes tasks. No signing authority. | No | No | No |
+
+## Mesh Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Colony Mesh                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│    ┌─────────────┐                                          │
+│    │    Queen    │ ◄── Primary coordinator                  │
+│    │  (node-a1)  │     Block production, external comms     │
+│    └──────┬──────┘                                          │
+│           │                                                  │
+│           ├─────────────────┬─────────────────┐             │
+│           │                 │                 │             │
+│    ┌──────┴──────┐   ┌──────┴──────┐   ┌──────┴──────┐     │
+│    │   Regent    │   │  Sentinel   │   │  Sentinel   │     │
+│    │  (node-b2)  │   │  (node-c3)  │   │  (node-d4)  │     │
+│    │  Hot standby│   │  Validator  │   │  Validator  │     │
+│    └─────────────┘   └─────────────┘   └─────────────┘     │
+│                                                              │
+│    ┌─────────────┐   ┌─────────────┐   ┌─────────────┐     │
+│    │    Drone    │   │    Drone    │   │    Drone    │     │
+│    │  (node-e5)  │   │  (node-f6)  │   │  (node-g7)  │     │
+│    │  Worker     │   │  Worker     │   │  Worker     │     │
+│    └─────────────┘   └─────────────┘   └─────────────┘     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Key Features
+
+### Automatic Failover
+
+When the Queen goes offline (detected via SWIM or heartbeat timeout):
+
+1. **Regent takes over**: The Regent promotes itself to Queen immediately (no consensus required)
+2. **Election triggered**: If no Regent exists, surviving nodes trigger an election
+3. **Certificate reissuance**: The new Queen issues certificates to remaining nodes
+
+### Task Routing
+
+Tasks are routed based on node capabilities:
+
+```typescript
+interface NodeCapabilities {
+  models: string[];           // Available model tiers
+  memory: number;             // RAM in MB
+  gpu: boolean;               // GPU available
+  specializations: string[];  // e.g., "code", "research", "vision"
+}
+```
+
+The mesh manager matches tasks to nodes:
+- CPU-intensive tasks route to nodes with higher core counts
+- Vision tasks route to nodes with GPU
+- Local model tasks route to nodes with Ollama
+
+### Heartbeat Protocol
+
+Nodes broadcast heartbeats at configurable intervals:
+
+```json
+{
+  "colony": {
+    "network": {
+      "mesh": {
+        "heartbeatIntervalMs": 5000,
+        "taskTimeoutSeconds": 300
+      }
+    }
+  }
+}
+```
+
+Missing 3 consecutive heartbeats triggers the suspect state.
+
+## Failover Behavior
+
+| Scenario | Recovery Time | Data Loss |
+| -------- | ------------- | --------- |
+| Queen fails, Regent exists | <30 seconds | None |
+| Queen fails, no Regent | 1-5 minutes (election) | Uncommitted mempool |
+| All signing nodes fail | Manual recovery | None (chain persists) |
+
+## Node Communication
+
+All inter-node communication uses:
+
+- **SWIM gossip**: Membership updates, failure detection
+- **mTLS**: Encrypted channels between nodes
+- **Signed messages**: Ed25519 signatures on all messages
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Node Roles" icon="users" href="/mesh/queen-regent-drone">
+    Detailed role responsibilities and permissions.
+  </Card>
+  <Card title="Leader Election" icon="crown" href="/mesh/election">
+    How leaders are elected when Queen fails.
+  </Card>
+  <Card title="Certificates" icon="certificate" href="/mesh/certificates">
+    Node certificates and key hierarchy.
+  </Card>
+  <Card title="Gossip Protocol" icon="comments" href="/mesh/gossip">
+    SWIM membership protocol details.
+  </Card>
+</CardGroup>

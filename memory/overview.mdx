@@ -1,0 +1,159 @@
+---
+title: "Memory Intelligence Overview"
+description: "15 cognitive features for persistent, contextual memory"
+icon: "brain"
+---
+
+ClawColony's Memory Intelligence provides 15 cognitive features for persistent, contextual memory. Everything runs on SQLite with zero LLM calls for query-time operations.
+
+## Feature Summary
+
+| Feature | Description |
+| ------- | ----------- |
+| Ebbinghaus Decay | `strength = importance × e^(-λ × days) × (1 + recalls × boost)` |
+| Real-Time Extraction | Pattern-based extraction of dates, preferences, facts, decisions. Zero LLM. |
+| Consolidation | Jaccard similarity deduplication. Near-duplicates merge with importance boost. |
+| Predictive Loading | Pre-load memories before user asks. Time patterns, conversation momentum. |
+| Signal Weighting | Entity mentions trigger 2x boost. Associated entities cascade at 1.3x. |
+| Cross-Colony Federation | Query paired colonies. Auto-redact credentials, phones, addresses. |
+| Sentiment Tagging | 3-axis sentiment (polarity, arousal, dominance) per memory. |
+| Bootstrap Mode | Aggressive extraction during first 7 days. Seeds from SOUL.md and USER.md. |
+| Temporal Knowledge Graph | Memories as nodes, 8 edge types (caused_by, led_to, contradicts, etc.). |
+| KV Fast-Facts Store | Sub-10ms lookups. Namespaced keys with provenance chains. |
+| Causal Chain Tracking | Answer "why" and "what-if" via forward/backward causal edge traversal. |
+| Memory Provenance | 8-tier trust scoring. Every memory tracks its source chain. |
+| Multi-Modal Memory | Text, image, audio, document, location. Modal references link to source files. |
+| Anticipatory Patterns | Behavioral rhythm detection. Pattern registry for proactive pre-loading. |
+| Active Forgetting | Contradiction detection and resolution based on recency and trust score. |
+
+## Architecture
+
+All features integrate into a single `MemoryIntelligence` class:
+
+```
+src/colony/cognition/
+  ├── memory-decay.ts           ← Ebbinghaus decay engine
+  ├── memory-extractor.ts       ← Real-time extraction
+  ├── memory-consolidator.ts    ← Merge duplicates
+  ├── memory-predictor.ts       ← Predictive context
+  ├── memory-signals.ts         ← Relationship weighting
+  ├── memory-federation.ts      ← Cross-colony queries
+  ├── memory-sentiment.ts       ← Emotional tagging
+  ├── memory-bootstrap.ts       ← New colony seeding
+  └── memory-intelligence.ts    ← Orchestrator
+```
+
+## Memory Structure
+
+```typescript
+interface Memory {
+  id: string;
+  content: string;
+  type: "episodic" | "semantic" | "procedural";
+  importance: number;          // 0.0 to 1.0
+  created_at: string;
+  last_recalled: string;
+  recall_count: number;
+  entity_slugs: string[];
+  sentiment?: SentimentTag;
+  provenance: ProvenanceChain;
+  decay_strength?: number;     // Calculated at query time
+}
+```
+
+## Query Flow
+
+When recalling memories:
+
+1. **Signal boost**: Apply entity boosts from current message
+2. **Decay scoring**: Calculate current strength via Ebbinghaus formula
+3. **Relationship boost**: Cascade boosts to associated entities
+4. **Sentiment context**: Get aggregate sentiment for tone suggestion
+5. **Rank and return**: Top memories with metadata
+
+```typescript
+interface RecallResult {
+  memories: Array<Memory & { score: number; strength: number; boosted: boolean }>;
+  predictedContext: Memory[];
+  toneSuggestion: ToneSuggestion;
+  activeBoosts: SignalBoost[];
+}
+```
+
+## Storage Layer
+
+All memory data lives in SQLite:
+
+```sql
+CREATE TABLE memories (
+  id TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  type TEXT NOT NULL,
+  importance REAL NOT NULL DEFAULT 0.5,
+  created_at TEXT NOT NULL,
+  last_recalled TEXT,
+  recall_count INTEGER DEFAULT 0
+);
+
+CREATE INDEX idx_memories_importance ON memories(importance DESC);
+CREATE INDEX idx_memories_type ON memories(type);
+
+-- FTS5 for full-text search
+CREATE VIRTUAL TABLE memories_fts USING fts5(content, content=memories);
+```
+
+Key SQLite features:
+- **WAL mode**: Concurrent reads during writes
+- **FTS5**: Full-text search for content
+- **Recursive CTEs**: Knowledge graph traversal
+- **JSON functions**: Flexible metadata
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "memory": {
+      "decay": {
+        "baseLambda": 0.16,
+        "importanceWeight": 0.8,
+        "recallBoostFactor": 0.2,
+        "pruneThreshold": 0.05,
+        "protectedTypes": ["identity"]
+      },
+      "extraction": {
+        "enabled": true,
+        "sensitivity": 0.5
+      },
+      "consolidation": {
+        "mergeThreshold": 0.85
+      },
+      "prediction": {
+        "enabled": true,
+        "maxPreloaded": 10
+      },
+      "signals": {
+        "mentionBoost": 2.0,
+        "associatedBoost": 1.3
+      }
+    }
+  }
+}
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Temporal Graph" icon="diagram-project" href="/memory/temporal-graph">
+    Knowledge graph with 8 edge types.
+  </Card>
+  <Card title="Fast-Facts" icon="bolt" href="/memory/fast-facts">
+    Sub-10ms KV lookups.
+  </Card>
+  <Card title="Decay Model" icon="clock" href="/memory/decay">
+    Ebbinghaus forgetting curve.
+  </Card>
+  <Card title="Federation" icon="globe" href="/networking/federation">
+    Cross-colony memory sharing.
+  </Card>
+</CardGroup>

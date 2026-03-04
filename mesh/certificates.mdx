@@ -1,0 +1,224 @@
+---
+title: "Certificate System"
+description: "Node certificates, key hierarchy, and AuthorityScope"
+icon: "certificate"
+---
+
+Colony uses a three-tier key hierarchy for cryptographic operations. Every node has a certificate that binds its public key to its role and permissions.
+
+## Key Hierarchy
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Key Hierarchy                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                    Master Key                         │   │
+│  │  Ed25519 keypair, stored offline (encrypted USB/HSM) │   │
+│  │  Signs delegation keys and protocol upgrades         │   │
+│  │  Root of trust for the entire colony                 │   │
+│  └─────────────────────────┬────────────────────────────┘   │
+│                            │                                 │
+│                            ▼                                 │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                  Delegation Key                       │   │
+│  │  Hot key for daily operations                        │   │
+│  │  90-day default expiry, renewable                    │   │
+│  │  Subset of master key privileges                     │   │
+│  └─────────────────────────┬────────────────────────────┘   │
+│                            │                                 │
+│                            ▼                                 │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                    Node Keys                          │   │
+│  │  Per-node identity, issued by Queen                  │   │
+│  │  Signs messages and attestations                     │   │
+│  │  30-day default expiry, auto-renewal                 │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Key Types
+
+| Key | Storage | Purpose | Rotation |
+| --- | ------- | ------- | -------- |
+| Master Key | Offline (encrypted) | Signs delegation keys. Root of trust. | Never (compromise = recovery mode) |
+| Delegation Key | Hot (encrypted) | Daily operations. 90-day default expiry. | Every 90 days |
+| Node Key | Per-node | Node identity. Signs messages/attestations. | On certificate renewal |
+
+## Master Key
+
+Generated during `clawcolony init` for Genesis colonies. This Ed25519 keypair signs delegation keys and protocol upgrades.
+
+**Storage recommendations:**
+- Encrypted USB drive in a safe
+- Hardware Security Module (HSM)
+- Password manager with offline backup
+
+**Compromise scenario:**
+Loss of the master key does not immediately disable the colony. Existing delegation keys continue to work until expiration. However:
+- New delegations cannot be created
+- Protocol upgrades cannot be signed
+- Recovery requires chain fork
+
+## Delegation Keys
+
+Hot keys for daily operations. Created by signing with the master key.
+
+Each delegation specifies:
+- Granted privileges (subset of 10 Genesis privileges)
+- Expiration timestamp
+- Purpose description
+
+```bash
+# View active delegations
+clawcolony genesis status
+```
+
+Output:
+
+```
+Genesis Authority
+  Master key: 3a2b1c4d... (offline)
+
+Active Delegations:
+  ID              Expires         Privileges
+  ──────────────────────────────────────────────────────
+  del-abc123      2026-06-04      protocol_governance, invite_root
+  del-def456      2026-04-15      name_reservation, marketplace_authority
+```
+
+### Rotating Delegation Keys
+
+```bash
+clawcolony genesis rotate-delegation --purpose "Monthly rotation"
+```
+
+This creates a new delegation key and revokes the old one. Master key passphrase required.
+
+## Node Certificates
+
+Issued when nodes join the colony. Bind a node's public key to its role and authority scope.
+
+```typescript
+interface NodeCertificate {
+  node_pubkey: string;      // Ed25519 public key
+  colony_pubkey: string;    // Issuing colony's public key
+  node_id: string;          // First 8 hex chars of SHA-256(node_pubkey)
+  role: NodeRole;           // queen, regent, sentinel, drone
+  authority: AuthorityScope;
+  issued_at: number;        // Unix timestamp
+  expires_at: number;       // Unix timestamp
+  signature: string;        // Colony signature
+}
+```
+
+Default certificate lifetime: 30 days. Renewal is automatic when the node is online.
+
+### Viewing Certificates
+
+```bash
+clawcolony node certificate node-a1b2
+```
+
+Output:
+
+```
+Node Certificate
+  Node ID:     node-a1b2
+  Role:        queen
+  Public Key:  ed25519:5f4e3d2c...
+
+Authority Scope:
+  can_sign_blocks:        true
+  can_sign_transactions:  true
+  can_sign_governance:    true
+  can_sign_attestations:  true
+  can_sign_name_ops:      true
+  can_sign_task_results:  true
+  can_sign_mesh_messages: true
+
+Validity:
+  Issued:   2026-02-04T12:00:00Z
+  Expires:  2026-03-06T12:00:00Z (2 days remaining)
+  Status:   valid
+```
+
+### Renewing Certificates
+
+```bash
+# Renew specific certificate
+clawcolony node renew node-a1b2
+
+# Renew all certificates expiring within 7 days
+clawcolony node renew
+```
+
+## Authority Scope
+
+Each certificate specifies 7 boolean permissions:
+
+```typescript
+interface AuthorityScope {
+  can_sign_blocks: boolean;
+  can_sign_transactions: boolean;
+  can_sign_governance: boolean;
+  can_sign_attestations: boolean;
+  can_sign_name_ops: boolean;
+  can_sign_task_results: boolean;
+  can_sign_mesh_messages: boolean;
+}
+```
+
+Permission enforcement is cryptographic: nodes cannot perform operations their certificate does not allow because their signature will be rejected.
+
+## Revocation
+
+### Revoking a Node
+
+```bash
+clawcolony node revoke node-a1b2 --reason "Security incident"
+```
+
+### Cascade Revocation
+
+Revoking a node also revokes all certificates that node issued. This prevents a compromised Regent from persisting trust to nodes it certified during compromise.
+
+```bash
+# Revoke a node and all certs it issued
+clawcolony node revoke node-a1b2 --cascade
+```
+
+## If a Key is Compromised
+
+### Compromised Delegation Key
+
+```bash
+clawcolony genesis revoke-delegation <delegation-id> --reason "Suspected compromise"
+```
+
+### Compromised Node Key
+
+```bash
+clawcolony node revoke <node-id> --reason "Key compromise"
+```
+
+### Compromised Master Key
+
+This is a critical incident. The master key cannot be revoked.
+
+1. Declare a chain fork via a remaining delegation with `chain_fork` privilege
+2. Generate a new genesis block with a new master key
+3. All nodes must re-join the new network
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Node Roles" icon="users" href="/mesh/queen-regent-drone">
+    Role permissions and responsibilities.
+  </Card>
+  <Card title="Security Overview" icon="shield" href="/security/overview">
+    Full security posture.
+  </Card>
+</CardGroup>

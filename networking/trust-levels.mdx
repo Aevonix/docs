@@ -1,0 +1,214 @@
+---
+title: "Trust Levels"
+description: "5-tier trust model from blocked to full access"
+icon: "shield-check"
+---
+
+ClawColony implements a 5-tier trust model that governs what actions entities can perform. Trust applies to both users (contacts) and colonies (federation peers).
+
+## Trust Tiers
+
+| Level | Name | Description |
+| ----- | ---- | ----------- |
+| -1 | Blocked | Explicitly banned. No access. |
+| 0 | Owner | Full access to all operations. |
+| 1 | Trusted | Can execute sensitive operations. |
+| 2 | Known | Standard access. Most interactions. |
+| 3 | Guest | Limited access. Read-only for most data. |
+
+## Action Permissions
+
+Actions are gated by trust level:
+
+| Action Type | Required Level | Description |
+| ----------- | -------------- | ----------- |
+| `admin` | 0 (Owner) | System configuration, credential management |
+| `sensitive_write` | 1 (Trusted) | Edit protected memories, manage contacts |
+| `write` | 2 (Known) | Standard writes, task creation |
+| `read_sensitive` | 2 (Known) | Read protected data |
+| `read` | 3 (Guest) | Read public data |
+| `query` | 3 (Guest) | Basic queries |
+| `none` | -1 (Blocked) | No access |
+
+## User Trust
+
+Each contact has an assigned trust level:
+
+```typescript
+interface Contact {
+  id: string;
+  name: string;
+  trustLevel: TrustLevel;
+  source: ContactSource;
+  lastInteraction: string;
+}
+```
+
+### Setting User Trust
+
+```bash
+# View contact trust
+clawcolony contacts show <contact-id>
+
+# Update trust level
+clawcolony contacts trust <contact-id> --level 1
+```
+
+### Trust Inference
+
+New contacts start at level 3 (Guest). Trust can be inferred from:
+
+1. **Direct declaration**: User explicitly trusts the contact
+2. **Interaction history**: Positive interactions increase trust
+3. **Entity association**: Contacts linked to trusted entities inherit partial trust
+4. **Source credibility**: Contacts from verified sources start higher
+
+## Colony Trust (Federation)
+
+Federation trust determines what colonies can do with each other:
+
+| Level | Capabilities |
+| ----- | ------------ |
+| 0 (Discovery) | See colony exists |
+| 1 (Verified) | Query public information |
+| 2 (Trusted) | Delegate tasks with payment |
+| 3 (Allied) | Share memories (redacted) |
+| 4 (FullMesh) | Full bidirectional sync |
+
+See [Federation](/networking/federation) for details.
+
+## Trust Manager
+
+The Trust Manager enforces permissions:
+
+```typescript
+interface TrustManager {
+  /** Check if entity can perform action */
+  canPerform(entityId: string, action: ActionType): boolean;
+
+  /** Get entity's trust level */
+  getTrustLevel(entityId: string): TrustLevel;
+
+  /** Set entity's trust level */
+  setTrustLevel(entityId: string, level: TrustLevel): void;
+
+  /** Check if content should be quarantined */
+  shouldQuarantine(content: string, source: string): boolean;
+}
+```
+
+### Permission Check Example
+
+```typescript
+// Before allowing a write operation
+if (!trustManager.canPerform(contactId, "write")) {
+  throw new PermissionError("Contact lacks write permission");
+}
+```
+
+## Quarantine
+
+Content from low-trust sources can be quarantined:
+
+1. **Automatic quarantine**: Content flagged by security checks
+2. **Manual review**: User reviews quarantined content
+3. **Release or delete**: User decides fate
+
+```bash
+# View quarantine
+clawcolony security quarantine list
+
+# Release item
+clawcolony security quarantine release <item-id>
+
+# Delete item
+clawcolony security quarantine delete <item-id>
+```
+
+## Trust Signals
+
+The system collects signals that affect trust:
+
+| Signal | Effect | Weight |
+| ------ | ------ | ------ |
+| Positive interaction | Increase | +0.1 |
+| Task completion | Increase | +0.2 |
+| Failed verification | Decrease | -0.3 |
+| Policy violation | Decrease | -0.5 |
+| Spam/abuse report | Decrease | -0.8 |
+| Explicit user trust | Override | Set to declared level |
+
+## Memory Guard
+
+The Memory Guard protects sensitive memories based on trust:
+
+```typescript
+interface MemoryGuard {
+  /** Check if entity can read memory */
+  canRead(entityId: string, memory: Memory): boolean;
+
+  /** Check if entity can write memory */
+  canWrite(entityId: string, memoryType: MemoryType): boolean;
+
+  /** Filter memories by entity access */
+  filterAccessible(entityId: string, memories: Memory[]): Memory[];
+}
+```
+
+### Protected Memory Types
+
+| Type | Required Level | Reason |
+| ---- | -------------- | ------ |
+| `identity` | 0 (Owner) | Core identity data |
+| `credentials` | 0 (Owner) | API keys, passwords |
+| `health` | 1 (Trusted) | Medical/health data |
+| `financial` | 1 (Trusted) | Financial information |
+| `relationship` | 2 (Known) | Relationship details |
+| `general` | 3 (Guest) | General memories |
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "security": {
+      "trustManager": {
+        "defaultTier": 3,
+        "quarantineEnabled": true,
+        "autoTrustThreshold": 0.8
+      },
+      "memoryGuard": {
+        "enabled": true,
+        "protectedTypes": ["identity", "credentials", "health", "financial"]
+      }
+    }
+  }
+}
+```
+
+## CLI Commands
+
+```bash
+# View trust configuration
+clawcolony security trust-config
+
+# Check entity trust
+clawcolony security check-trust <entity-id>
+
+# List blocked entities
+clawcolony security blocked
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Security Overview" icon="shield" href="/security/overview">
+    Full security posture.
+  </Card>
+  <Card title="Federation" icon="globe" href="/networking/federation">
+    Colony trust levels.
+  </Card>
+  <Card title="Credentials" icon="key" href="/security/credentials">
+    Credential vault.
+  </Card>
+</CardGroup>

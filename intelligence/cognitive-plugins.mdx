@@ -1,0 +1,284 @@
+---
+title: "Cognitive Plugins"
+description: "8 higher-order reasoning components for the perceive-predict-act loop"
+icon: "brain"
+---
+
+The 8 Cognitive Plugins provide higher-order reasoning capabilities. They work together to form a perceive-predict-act loop.
+
+## Cognition Orchestrator
+
+The central coordinator for all cognitive plugins.
+
+**Responsibilities:**
+- Plugin lifecycle management (init, run, shutdown)
+- Event routing between plugins
+- Decision arbitration when plugins conflict
+- Resource allocation for cognitive tasks
+
+```typescript
+interface CognitionOrchestrator {
+  registerPlugin(plugin: CognitionPlugin): void;
+  processEvent(event: CognitiveEvent): Promise<CognitiveResult>;
+  arbitrate(decisions: Decision[]): Decision;
+}
+```
+
+## Goal Engine
+
+Infers, decomposes, and tracks user goals.
+
+**Capabilities:**
+- Goal inference from conversation context
+- Hierarchical decomposition into sub-goals
+- Priority scoring based on urgency and importance
+- Lifecycle tracking (pending → active → completed/abandoned)
+
+```typescript
+interface Goal {
+  id: string;
+  description: string;
+  priority: number;           // 0.0 to 1.0
+  status: GoalStatus;
+  subGoals: Goal[];
+  deadline?: string;
+  progress: number;           // 0.0 to 1.0
+  inferredFrom: string[];     // Source message IDs
+}
+
+interface GoalEngine {
+  inferGoals(context: ConversationContext): Promise<Goal[]>;
+  decompose(goal: Goal): Promise<Goal[]>;
+  updateProgress(goalId: string, progress: number): void;
+}
+```
+
+## Mind Model
+
+Theory of mind with Bayesian inference of mental states.
+
+**Capabilities:**
+- Infer user's knowledge state
+- Model user's beliefs and expectations
+- Predict emotional responses
+- Adjust communication style based on state
+
+```typescript
+interface MindState {
+  knowledgeMap: Map<string, KnowledgeLevel>;
+  beliefSet: Belief[];
+  emotionalState: EmotionalState;
+  communicationPreferences: CommunicationStyle;
+  confidence: number;
+}
+
+interface MindModel {
+  inferState(messages: Message[]): Promise<MindState>;
+  predictReaction(action: Action): EmotionalPrediction;
+  updateFromFeedback(feedback: UserFeedback): void;
+}
+```
+
+**Ethical guardrails:** The Mind Model has configurable guardrails to prevent manipulation:
+- No dark patterns
+- Transparent intent
+- User autonomy respected
+
+## Predictive Engine
+
+Monte Carlo scenario projection.
+
+**Capabilities:**
+- Project multiple future scenarios
+- Calculate probability distributions
+- Identify best/expected/worst outcomes
+- Support "what-if" queries
+
+```typescript
+interface Scenario {
+  id: string;
+  description: string;
+  probability: number;
+  outcome: ScenarioOutcome;
+  keyFactors: string[];
+}
+
+interface PredictiveEngine {
+  project(situation: Situation, depth: number): Promise<Scenario[]>;
+  whatIf(situation: Situation, change: Change): Promise<Scenario[]>;
+  getBestCase(): Scenario;
+  getWorstCase(): Scenario;
+}
+```
+
+## Meta-Learner
+
+Monitors cognitive performance and identifies improvement areas.
+
+**Capabilities:**
+- Track accuracy of predictions
+- Measure goal achievement rates
+- Identify knowledge gaps
+- Suggest capability improvements
+
+```typescript
+interface CognitivePerformance {
+  predictionAccuracy: number;
+  goalCompletionRate: number;
+  responseQuality: number;
+  knowledgeGaps: string[];
+}
+
+interface MetaLearner {
+  evaluate(): Promise<CognitivePerformance>;
+  identifyGaps(): string[];
+  suggestImprovements(): Improvement[];
+}
+```
+
+## Continuous Learner
+
+Autonomous knowledge ingestion from external sources.
+
+**Capabilities:**
+- Monitor configured feeds (RSS, APIs, etc.)
+- Extract relevant information
+- Integrate into knowledge graph
+- Maintain currency of world knowledge
+
+```typescript
+interface KnowledgeSource {
+  type: "rss" | "api" | "scrape";
+  url: string;
+  refreshIntervalMinutes: number;
+  relevanceThreshold: number;
+}
+
+interface ContinuousLearner {
+  addSource(source: KnowledgeSource): void;
+  processFeeds(): Promise<KnowledgeUpdate[]>;
+  getLatestInsights(topic: string): Insight[];
+}
+```
+
+**Note:** Disabled by default. Enable with caution as it consumes resources.
+
+## Synthesis Engine
+
+Cross-domain insight discovery via graph analysis.
+
+**Capabilities:**
+- Find non-obvious connections between concepts
+- Identify patterns across domains
+- Generate novel insights
+- Surface hidden relationships
+
+```typescript
+interface Insight {
+  id: string;
+  domains: string[];
+  connection: string;
+  confidence: number;
+  supporting: string[];        // Memory IDs
+}
+
+interface SynthesisEngine {
+  findConnections(domainA: string, domainB: string): Promise<Insight[]>;
+  discoverPatterns(topic: string): Pattern[];
+  generateInsights(context: Context): Insight[];
+}
+```
+
+## Reasoning Verifier
+
+Validates reasoning chains and detects fallacies.
+
+**Capabilities:**
+- Pattern-based verification (fast)
+- LLM verification (thorough)
+- Fallacy detection
+- Consistency checking
+
+```typescript
+interface VerificationResult {
+  valid: boolean;
+  fallacies: Fallacy[];
+  inconsistencies: string[];
+  confidence: number;
+}
+
+interface ReasoningVerifier {
+  verify(reasoning: ReasoningChain): Promise<VerificationResult>;
+  detectFallacies(argument: string): Fallacy[];
+  checkConsistency(claims: Claim[]): boolean;
+}
+```
+
+Detected fallacy types:
+- Ad hominem
+- Straw man
+- False dichotomy
+- Appeal to authority
+- Circular reasoning
+- And more...
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "cognitive": {
+      "orchestrator": {
+        "enabled": true,
+        "maxConcurrentPlugins": 4
+      },
+      "goals": {
+        "enabled": true,
+        "maxActiveGoals": 10,
+        "inferenceThreshold": 0.7
+      },
+      "predictions": {
+        "enabled": true,
+        "monteCarloSamples": 100,
+        "maxProjectionDepth": 5
+      },
+      "metalearner": {
+        "enabled": true,
+        "evaluationIntervalHours": 24
+      },
+      "mindModel": {
+        "enabled": true,
+        "ethicalGuardrails": true,
+        "updateThreshold": 0.3
+      },
+      "synthesis": {
+        "enabled": true,
+        "minConfidence": 0.6
+      },
+      "continuousLearner": {
+        "enabled": false,
+        "maxSources": 10,
+        "refreshIntervalMinutes": 60
+      },
+      "reasoning": {
+        "enabled": true,
+        "llmVerification": false
+      }
+    }
+  }
+}
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Intelligence Overview" icon="lightbulb" href="/intelligence/overview">
+    All 24 components.
+  </Card>
+  <Card title="Model Router" icon="route" href="/intelligence/model-router">
+    Model selection.
+  </Card>
+  <Card title="Memory Intelligence" icon="database" href="/memory/overview">
+    Memory features.
+  </Card>
+</CardGroup>

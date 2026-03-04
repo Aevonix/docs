@@ -1,0 +1,195 @@
+---
+title: "Architecture Overview"
+description: "How ClawColony's layers fit together from database to blockchain"
+icon: "sitemap"
+---
+
+ClawColony is built as a stack of independent modules that communicate through a typed event bus. Each module implements the `CognitionPlugin` interface, providing a consistent pattern for initialization, migration, and shutdown.
+
+## Layer Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                              ClawColony Stack                                 │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  ColonyChain         Block producer, Raft consensus, mempool, chain sync     │
+│  ────────────────    13 transaction types, governance, fork resolution        │
+│                                                                               │
+│  Colony Economy      ColonyCoin ledger, minter, wash-trade detection,        │
+│  ────────────────    complexity oracle, 2% transaction tax                    │
+│                                                                               │
+│  Sponsorship Bonds   Genesis > Golden > Silver > Bronze hierarchy,           │
+│  ────────────────    fee distribution, slashing engine                        │
+│                                                                               │
+│  Beacon Network      Validator registry, BFT consensus for certs,            │
+│  ────────────────    trust/untrust attestations                               │
+│                                                                               │
+│  Federation          5 trust levels, mTLS between colonies,                  │
+│  ────────────────    task delegation, memory sharing                          │
+│                                                                               │
+│  Colony Mesh         Queen/Regent/Drone roles, heartbeat, election,          │
+│  ────────────────    task routing, capability-based assignment                │
+│                                                                               │
+│  Gossip Protocol     SWIM membership, failure detection, NAT relay           │
+│  ────────────────                                                             │
+│                                                                               │
+│  Cognitive Plugins   Orchestrator, goals, predictions, metalearner,          │
+│  (8 components)      mind-model, synthesis, continuous-learner, reasoning    │
+│                                                                               │
+│  Intelligence Layer  Tool-learner, self-reflector, task-planner, anomaly,    │
+│  (8 components)      preference-learner, initiative, research, continuity    │
+│                                                                               │
+│  Memory Intelligence 15 features: decay, extraction, consolidation,          │
+│  ────────────────    prediction, signals, graph, facts, provenance           │
+│                                                                               │
+│  Security Layer      Sanitizer, output gate, trust manager, memory guard     │
+│  ────────────────                                                             │
+│                                                                               │
+│  Model Router        4-layer routing, 5 model tiers, cascade, feedback       │
+│  ────────────────                                                             │
+│                                                                               │
+│  OpenClaw Base       Channels, gateway, agents, plugins, model providers     │
+│  ────────────────    39 messaging channels                                    │
+│                                                                               │
+│  Colony DB           SQLite WAL, recursive CTEs, FTS5, better-sqlite3        │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Module Categories
+
+### Infrastructure Modules
+
+| Module | Purpose | Key Files |
+| ------ | ------- | --------- |
+| Colony DB | SQLite storage with WAL mode, FTS5 for full-text search | `colony-db.ts` |
+| Gossip | SWIM membership protocol, peer discovery | `swim-protocol.ts` |
+| Mesh | Node coordination, task routing | `mesh-manager.ts` |
+| Chain | Block production, consensus, state machine | `chain-manager.ts` |
+
+### Intelligence Modules
+
+| Module | Purpose | Key Files |
+| ------ | ------- | --------- |
+| Memory Intelligence | 15 cognitive features for persistent memory | `memory-intelligence.ts` |
+| Cognitive Plugins | Higher-order reasoning and planning | `cognition-orchestrator.ts` |
+| Model Router | Multi-tier model selection and cascade | `model-router.ts` |
+| Intelligence Layer | Tool learning, self-reflection, task planning | `intelligence-layer.ts` |
+
+### Economy Modules
+
+| Module | Purpose | Key Files |
+| ------ | ------- | --------- |
+| ColonyCoin | Internal currency ledger | `colonycoin-ledger.ts` |
+| Sponsorship | Validator bonds and slashing | `sponsorship-manager.ts` |
+| Taxation | Transaction tax collection | `taxation-collector.ts` |
+
+### Security Modules
+
+| Module | Purpose | Key Files |
+| ------ | ------- | --------- |
+| Input Sanitizer | Injection pattern detection | `input-sanitizer.ts` |
+| Output Gate | Sensitive data monitoring | `output-gate.ts` |
+| Trust Manager | 5-tier trust model | `trust-manager.ts` |
+
+## Event Bus
+
+Modules communicate through a typed event bus. Events are strongly typed with TypeScript interfaces.
+
+```typescript
+interface ColonyEvent {
+  type: string;
+  payload: unknown;
+  timestamp: string;
+  source: string;
+}
+
+// Example: Memory extracted event
+interface MemoryExtractedEvent extends ColonyEvent {
+  type: "memory:extracted";
+  payload: {
+    memoryId: string;
+    content: string;
+    importance: number;
+    entities: string[];
+  };
+}
+```
+
+Modules subscribe to events they care about:
+
+```typescript
+eventBus.subscribe("memory:extracted", async (event) => {
+  // Update knowledge graph
+  await this.graphManager.addMemory(event.payload);
+});
+```
+
+## Database Schema
+
+All data lives in SQLite. Each module defines its own tables via `getMigrationSQL()`:
+
+```typescript
+export class MemoryPlugin implements CognitionPlugin {
+  readonly name = "memory";
+
+  getMigrationSQL(): string {
+    return `
+      CREATE TABLE IF NOT EXISTS memories (
+        id TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        importance REAL NOT NULL DEFAULT 0.5,
+        created_at TEXT NOT NULL,
+        recall_count INTEGER NOT NULL DEFAULT 0
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_memories_importance
+        ON memories(importance DESC);
+    `;
+  }
+}
+```
+
+Key SQLite features used:
+- **WAL mode**: Concurrent reads during writes
+- **FTS5**: Full-text search for memory content
+- **Recursive CTEs**: Knowledge graph traversal
+- **JSON functions**: Flexible metadata storage
+
+## Configuration
+
+All modules read from a unified config at `~/.clawcolony/clawcolony.json`:
+
+```json
+{
+  "gateway": {
+    "port": 18791,
+    "bind": "127.0.0.1"
+  },
+  "colony": {
+    "memory": { /* memory config */ },
+    "router": { /* model router config */ },
+    "network": { /* gossip/mesh config */ },
+    "chain": { /* blockchain config */ }
+  }
+}
+```
+
+See [Configuration Reference](/reference/configuration) for all options.
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Plugin System" icon="puzzle-piece" href="/architecture/plugins">
+    How to write and register plugins.
+  </Card>
+  <Card title="Colony Mesh" icon="network-wired" href="/mesh/overview">
+    Multi-node coordination.
+  </Card>
+  <Card title="ColonyChain" icon="link" href="/chain/overview">
+    Blockchain consensus layer.
+  </Card>
+  <Card title="Memory Intelligence" icon="brain" href="/memory/overview">
+    15 cognitive memory features.
+  </Card>
+</CardGroup>

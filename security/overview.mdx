@@ -1,0 +1,230 @@
+---
+title: "Security Overview"
+description: "Defense-in-depth security posture with cryptographic guarantees"
+icon: "shield"
+---
+
+ClawColony implements defense-in-depth security with cryptographic guarantees at every layer. All 56 security findings from the initial audit have been addressed.
+
+## Security Layers
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Security Stack                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Input Protection                                           │
+│  ─────────────────                                          │
+│  InputSanitizer: 15+ injection patterns detected            │
+│  Base64 decode detection, zero-width character stripping    │
+│  Rate limiting with abuse detection                         │
+│                                                              │
+│  Output Protection                                          │
+│  ────────────────                                           │
+│  OutputGate: 9 sensitive data types monitored               │
+│  Block/redact/warn per data type                            │
+│  Kill switch for emergency content blocking                 │
+│                                                              │
+│  Trust Management                                           │
+│  ────────────────                                           │
+│  5-tier trust model (-1 blocked through 0 owner)            │
+│  7 action types with tier requirements                      │
+│  Quarantine for suspicious content                          │
+│                                                              │
+│  Memory Protection                                          │
+│  ─────────────────                                          │
+│  Memory guard for write protection                          │
+│  Provenance-aware filtering                                 │
+│  Automatic redaction in federation                          │
+│                                                              │
+│  Cryptographic Guarantees                                   │
+│  ────────────────────────                                   │
+│  Ed25519 signatures on all messages                         │
+│  AES-256-GCM encrypted credential storage                   │
+│  X25519 key exchange                                        │
+│                                                              │
+│  Compliance                                                 │
+│  ──────────                                                 │
+│  Protocol engine for workflows                              │
+│  Directive system for policy                                │
+│  Full audit trail                                           │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Cryptography
+
+| Algorithm | Purpose |
+| --------- | ------- |
+| Ed25519 | Signatures on messages, blocks, certificates |
+| AES-256-GCM | Encrypted credential storage |
+| X25519 | Key exchange for secure key transfer |
+| SHA-256 | Block chaining, content hashing |
+
+All cryptographic operations use well-audited libraries (libsodium via Node.js crypto).
+
+## Input Protection
+
+The InputSanitizer detects and blocks:
+
+| Pattern | Description |
+| ------- | ----------- |
+| SQL injection | `'; DROP TABLE`, `UNION SELECT` |
+| XSS | `<script>`, `javascript:` |
+| Command injection | `; rm -rf`, `$()`, backticks |
+| Path traversal | `../`, `/etc/passwd` |
+| SSRF | Internal IP addresses, localhost |
+| Prompt injection | Instruction override attempts |
+| Base64 encoded attacks | Decoded and re-scanned |
+| Zero-width characters | Stripped to prevent obfuscation |
+
+Rate limiting prevents abuse:
+- Per-user request limits
+- Per-IP limits
+- Automatic backoff for violations
+
+## Output Protection
+
+The OutputGate monitors 9 sensitive data types:
+
+| Type | Default Action |
+| ---- | -------------- |
+| API keys | Block |
+| Passwords | Block |
+| Private keys | Block |
+| SSN/Tax IDs | Redact |
+| Credit cards | Redact |
+| Phone numbers | Warn |
+| Email addresses | Warn |
+| Physical addresses | Warn |
+| Medical info | Redact |
+
+Actions per type:
+- **Block**: Response rejected, not sent
+- **Redact**: Content replaced with `[REDACTED]`
+- **Warn**: Response sent but flagged for review
+
+## Trust Management
+
+See [Trust Levels](/networking/trust-levels) for the full trust model.
+
+Key features:
+- 5 tiers from Blocked (-1) to Owner (0)
+- Action-based permissions
+- Quarantine for low-trust content
+- Memory guard integration
+
+## Memory Protection
+
+The Memory Guard enforces:
+
+| Protection | Description |
+| ---------- | ----------- |
+| Write protection | Certain memory types require elevated trust |
+| Read protection | Sensitive memories hidden from low-trust entities |
+| Provenance verification | Memories tracked to their source |
+| Federation redaction | Automatic redaction before sharing |
+
+## Compliance Engine
+
+For regulated environments:
+
+```typescript
+interface ComplianceProtocol {
+  id: string;
+  name: string;
+  steps: ProtocolStep[];
+  requiredApprovals: string[];
+  auditLevel: "full" | "summary" | "none";
+}
+```
+
+Features:
+- Step-by-step workflow enforcement
+- Approval chains
+- Directive system for policy rules
+- Complete audit trail
+
+## Audit Trail
+
+All operations are logged:
+
+```typescript
+interface AuditEntry {
+  timestamp: string;
+  actor: string;
+  action: string;
+  resource: string;
+  result: "success" | "blocked" | "error";
+  details: Record<string, unknown>;
+  trustLevel: number;
+}
+```
+
+Storage:
+- Local SQLite for immediate access
+- Optional export to external SIEM
+- Configurable retention period
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "security": {
+      "enabled": true,
+      "inputSanitizer": {
+        "enabled": true,
+        "strictMode": false
+      },
+      "outputGate": {
+        "enabled": true,
+        "blockTypes": ["api_key", "password", "private_key"],
+        "redactTypes": ["ssn", "credit_card", "medical"],
+        "warnTypes": ["phone", "email", "address"]
+      },
+      "trustManager": {
+        "defaultTier": 3,
+        "quarantineEnabled": true
+      },
+      "audit": {
+        "enabled": true,
+        "retentionDays": 90
+      }
+    }
+  }
+}
+```
+
+## CLI Commands
+
+```bash
+# View security status
+clawcolony security status
+
+# View audit log
+clawcolony security audit --last 100
+
+# List blocked entities
+clawcolony security blocked
+
+# Test input sanitization
+clawcolony security test-input "test string"
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Credentials" icon="key" href="/security/credentials">
+    Encrypted credential vault.
+  </Card>
+  <Card title="Audit Results" icon="clipboard-check" href="/security/audit-results">
+    Security audit summary.
+  </Card>
+  <Card title="Trust Levels" icon="shield-check" href="/networking/trust-levels">
+    5-tier trust model.
+  </Card>
+  <Card title="Certificates" icon="certificate" href="/mesh/certificates">
+    Node certificates.
+  </Card>
+</CardGroup>

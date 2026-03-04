@@ -1,0 +1,94 @@
+---
+title: "What is ClawColony?"
+description: "Distributed AI agent platform with persistent memory, cognitive intelligence, and blockchain-lite consensus"
+icon: "house"
+---
+
+ClawColony is a fork of [OpenClaw](https://github.com/openclaw/openclaw) that transforms a single AI assistant into a distributed, self-improving agent network. Where OpenClaw provides the messaging layer and gateway infrastructure, ClawColony adds persistent memory with 15 cognitive features, a multi-node mesh with SWIM gossip, blockchain-lite consensus for governance, and 8 cognitive plugins that form a perceive-predict-act loop.
+
+## Core Principles
+
+**Everything runs on SQLite.** No vector databases required. No external services for core functionality. The memory system uses Ebbinghaus decay curves, knowledge graphs with recursive CTEs, and hybrid retrieval that combines FTS5, semantic embeddings, and graph traversal.
+
+**Zero LLM for heuristics.** Query-time operations are pattern-based. No LLM calls to search your own memory.
+
+**Plugin-first architecture.** Every module implements `CognitionPlugin`. A typed event bus connects them. Colonies discover each other through SWIM gossip, elect validators for trust attestation, coordinate tasks through the mesh, and maintain permanent records on ColonyChain.
+
+**Operator sovereignty.** You own the data, you control the network, you decide who joins. The economic model prevents spam through compute-backed currency. The authority model provides accountability through sponsorship chains.
+
+## Architecture Layers
+
+```
++------------------------------------------------------------------------------+
+|                              ClawColony Stack                                 |
++------------------------------------------------------------------------------+
+|  ColonyChain         block producer, Raft consensus, mempool, chain sync     |
+|  ----------------    13 transaction types, governance, fork resolution        |
+|                                                                               |
+|  Colony Economy      ColonyCoin ledger, minter, wash-trade detection,        |
+|  ----------------    complexity oracle, 2% transaction tax (1% burn + 1% tax) |
+|                                                                               |
+|  Sponsorship Bonds   Genesis > Golden > Silver > Bronze tier hierarchy,      |
+|  ----------------    fee distribution, slashing engine, bond lifecycle        |
+|                                                                               |
+|  Beacon Network      validator registry, BFT consensus for colony certs,     |
+|  ----------------    trust/untrust attestations, gossip identity broadcast    |
+|                                                                               |
+|  Federation          5 trust levels, mTLS between colonies, task delegation, |
+|  ----------------    memory sharing, auto-redaction of sensitive data         |
+|                                                                               |
+|  Colony Mesh         Queen/Regent/Drone roles, heartbeat, election,          |
+|  ----------------    task routing, capability-based assignment                |
+|                                                                               |
+|  Gossip Protocol     SWIM membership, failure detection, NAT relay,          |
+|  ----------------    piggyback queue, seed nodes                              |
+|                                                                               |
+|  Cognitive Plugins   orchestrator, goals, predictions, metalearner,          |
+|  (8 components)      mind-model, synthesis, continuous-learner, reasoning    |
+|                                                                               |
+|  Memory Intelligence 15 features: decay, extraction, consolidation,          |
+|  ----------------    prediction, signals, graph, facts, provenance, more      |
+|                                                                               |
+|  OpenClaw Base       channels, gateway, agents, plugins, model providers     |
+|  ----------------    39 messaging channels inherited from upstream            |
+|                                                                               |
+|  Colony DB           SQLite WAL, recursive CTEs, FTS5, better-sqlite3        |
++------------------------------------------------------------------------------+
+```
+
+## Key Capabilities
+
+<CardGroup cols={2}>
+  <Card title="Persistent Memory" icon="brain">
+    15 cognitive features including Ebbinghaus decay, knowledge graphs, fast-facts lookup, and cross-colony federation.
+  </Card>
+  <Card title="Multi-Node Mesh" icon="network-wired">
+    Queen/Regent/Drone roles with SWIM gossip, automatic failover, and capability-based task routing.
+  </Card>
+  <Card title="Blockchain-Lite Consensus" icon="link">
+    ColonyChain provides tamper-proof records with Raft consensus, 13 transaction types, and protocol governance.
+  </Card>
+  <Card title="Cognitive Intelligence" icon="lightbulb">
+    8 cognitive plugins for goal inference, prediction, mind-modeling, and autonomous learning.
+  </Card>
+</CardGroup>
+
+## Project Stats
+
+| Metric         | Count    |
+| -------------- | -------- |
+| Colony modules | 56       |
+| Source files   | 722      |
+| Test files     | 208      |
+| Lines of code  | ~180,000 |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install ClawColony and run your first colony in 5 minutes.
+  </Card>
+  <Card title="Migration" icon="arrow-right-arrow-left" href="/migration">
+    Already running OpenClaw? Migrate in one command.
+  </Card>
+</CardGroup>

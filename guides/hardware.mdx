@@ -1,0 +1,286 @@
+---
+title: "Hardware Requirements"
+description: "Hardware tiers and recommendations for running ClawColony"
+icon: "server"
+---
+
+ClawColony runs on a wide range of hardware, from Raspberry Pi to dedicated servers. Choose your tier based on your needs.
+
+## Hardware Tiers
+
+| Tier | Hardware | Capability |
+| ---- | -------- | ---------- |
+| 0 | Raspberry Pi 4, 4GB RAM | Basic mesh node, no local models |
+| 1-2 | Laptop, 16GB RAM | Full colony with small local models |
+| 3-4 | Server with GPU | Full cognitive layer + large models |
+
+## Tier Details
+
+### Tier 0: Minimal
+
+**Hardware:**
+- Raspberry Pi 4 (4GB+ RAM)
+- 32GB+ SD card or SSD
+- Ethernet recommended
+
+**Capabilities:**
+- Mesh participation (Drone role)
+- Memory storage
+- API proxy to other nodes
+- No local model inference
+
+**Use Cases:**
+- Edge nodes
+- Low-power always-on presence
+- IoT integration points
+
+### Tier 1-2: Standard
+
+**Hardware:**
+- Modern laptop or desktop
+- 16GB RAM minimum, 32GB recommended
+- 256GB+ SSD
+- 4+ CPU cores
+
+**Capabilities:**
+- Full colony operation
+- Small local models (phi3, llama3:8b)
+- Memory intelligence
+- All cognitive plugins
+- Can be Queen or Regent
+
+**Use Cases:**
+- Personal use
+- Development
+- Small team deployments
+
+### Tier 3-4: Advanced
+
+**Hardware:**
+- Server or workstation
+- 64GB+ RAM
+- GPU (NVIDIA recommended)
+  - RTX 3090/4090 (24GB VRAM)
+  - A100/H100 for enterprise
+- 1TB+ NVMe SSD
+- 8+ CPU cores
+
+**Capabilities:**
+- Large local models (llama3:70b, mixtral)
+- Fast embeddings generation
+- Full cognitive layer at scale
+- High-throughput task processing
+
+**Use Cases:**
+- Production deployments
+- Multi-colony networks
+- Enterprise use
+
+## Operating System
+
+**Supported:**
+- macOS 12+
+- Ubuntu 22.04+
+- Debian 12+
+- Windows with WSL2
+
+**Recommended:**
+- macOS for development
+- Linux (Ubuntu/Debian) for production
+
+## Software Prerequisites
+
+| Software | Version | Required |
+| -------- | ------- | -------- |
+| Node.js | 22+ | Yes |
+| npm | 10+ | Yes |
+| Ollama | Latest | For local models |
+| SQLite | 3.40+ | Bundled |
+
+## Disk Space
+
+| Component | Space |
+| --------- | ----- |
+| ClawColony installation | 500MB |
+| Database (minimal) | 100MB |
+| Database (typical use) | 1-10GB |
+| Local models (small) | 5-10GB each |
+| Local models (large) | 40-70GB each |
+| Transcripts | Varies |
+
+**Minimum:** 10GB free
+**Recommended:** 100GB+ for production
+
+## Memory Usage
+
+| Component | RAM |
+| --------- | --- |
+| Gateway | 200MB |
+| SQLite | 100-500MB |
+| Cognitive plugins | 500MB-1GB |
+| Ollama (small model) | 4-8GB |
+| Ollama (large model) | 16-48GB |
+
+**Formula:**
+```
+Total = 1GB base + model requirements + 2GB headroom
+```
+
+## Network Requirements
+
+### Bandwidth
+
+| Usage | Bandwidth |
+| ----- | --------- |
+| Standalone | Minimal (API calls only) |
+| Mesh node | 10 Mbps |
+| Federation | 50+ Mbps |
+| High traffic | 100+ Mbps |
+
+### Ports
+
+| Port | Protocol | Purpose |
+| ---- | -------- | ------- |
+| 18791 | TCP | Gateway HTTP |
+| 18792 | TCP | WebSocket |
+| 18793 | UDP | SWIM gossip |
+
+### Latency
+
+- Local network: <10ms ideal
+- Same region: <50ms acceptable
+- Cross-region: <200ms workable
+
+## Recommended Configurations
+
+### Personal Use
+
+```
+MacBook Air M2, 16GB RAM
+- Run: Standalone or Drone
+- Models: phi3, claude via API
+- Storage: 256GB SSD
+```
+
+### Small Team (3-5 people)
+
+```
+Mac Studio M2 Max, 32GB RAM
+- Run: Queen
+- Models: llama3:8b, claude via API
+- Storage: 512GB SSD
+
+MacBook Pro (team members)
+- Run: Drone
+- Storage: 256GB SSD
+```
+
+### Production (Always-On)
+
+```
+Linux VPS (Queen)
+- 8 vCPU, 32GB RAM
+- 500GB SSD
+- Static IP
+- Run: Queen
+
+Linux VPS (Regent)
+- 4 vCPU, 16GB RAM
+- 200GB SSD
+- Static IP
+- Run: Regent
+
+Local machines
+- Run: Drone
+```
+
+### Enterprise (High Availability)
+
+```
+Primary datacenter
+- 3x servers for consensus quorum
+- GPU server for local inference
+- Load balancer
+
+Secondary datacenter
+- Regent node
+- Backup validators
+
+Edge locations
+- Drone nodes
+```
+
+## GPU Recommendations
+
+### Consumer GPUs
+
+| GPU | VRAM | Models |
+| --- | ---- | ------ |
+| RTX 3060 | 12GB | Up to 8B params |
+| RTX 3080 | 10GB | Up to 8B params |
+| RTX 3090 | 24GB | Up to 13B params |
+| RTX 4090 | 24GB | Up to 13B params, faster |
+
+### Professional GPUs
+
+| GPU | VRAM | Models |
+| --- | ---- | ------ |
+| A6000 | 48GB | Up to 30B params |
+| A100 | 40/80GB | Up to 70B params |
+| H100 | 80GB | Any model, fastest |
+
+### Apple Silicon
+
+| Chip | Unified Memory | Models |
+| ---- | -------------- | ------ |
+| M1/M2 | 16GB | Up to 8B params |
+| M1/M2 Pro | 32GB | Up to 13B params |
+| M1/M2 Max | 64GB | Up to 30B params |
+| M1/M2 Ultra | 128GB | Up to 70B params |
+
+## Performance Tuning
+
+### SQLite
+
+For high write loads:
+```json
+{
+  "colony": {
+    "database": {
+      "walMode": true,
+      "cacheSize": 10000,
+      "mmapSize": 1073741824
+    }
+  }
+}
+```
+
+### Node.js
+
+For production:
+```bash
+NODE_OPTIONS="--max-old-space-size=4096" clawcolony gateway run
+```
+
+### Ollama
+
+For better performance:
+```bash
+OLLAMA_NUM_PARALLEL=4 ollama serve
+```
+
+## Monitoring Hardware
+
+```bash
+# CPU and memory
+htop
+
+# Disk
+df -h ~/.clawcolony
+
+# GPU (NVIDIA)
+nvidia-smi
+
+# Colony specific
+clawcolony observe
+```

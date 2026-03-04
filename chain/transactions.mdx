@@ -1,0 +1,267 @@
+---
+title: "Transaction Types"
+description: "All 13 transaction types supported by ColonyChain"
+icon: "receipt"
+---
+
+ColonyChain supports 13 transaction types covering currency, naming, staking, sponsorship, and governance.
+
+## Transaction Structure
+
+All transactions share a common structure:
+
+```typescript
+interface Transaction {
+  id: string;              // Unique transaction ID
+  type: TransactionType;
+  from: string;            // Sender colony pubkey
+  timestamp: string;       // ISO-8601
+  payload: unknown;        // Type-specific data
+  signature: string;       // Ed25519 signature
+  fee?: number;            // Optional fee in CC
+}
+```
+
+## Transaction Types
+
+### Currency Transactions
+
+#### `coin_transfer`
+
+Move ColonyCoin between colonies.
+
+```typescript
+interface CoinTransferPayload {
+  to: string;        // Recipient colony pubkey
+  amount: number;    // Amount in CC
+  memo?: string;     // Optional memo (max 256 chars)
+}
+```
+
+Tax applied:
+- 1% to Genesis colony
+- 1% burned (removed from circulation)
+- 98% to recipient
+
+Example: 100 CC transfer
+```
+1 CC  → Genesis colony
+1 CC  → Burned
+98 CC → Recipient
+```
+
+### Naming Transactions
+
+#### `name_claim`
+
+Claim a human-readable colony name.
+
+```typescript
+interface NameClaimPayload {
+  name: string;      // Requested name (3-32 chars, alphanumeric + hyphen)
+}
+```
+
+Names must be:
+- 3-32 characters
+- Alphanumeric plus hyphens
+- Not already claimed
+- Not reserved by Genesis
+
+#### `name_release`
+
+Release a claimed name back to availability.
+
+```typescript
+interface NameReleasePayload {
+  name: string;      // Name to release
+}
+```
+
+### Staking Transactions
+
+#### `stake_lock`
+
+Lock coins as validator stake.
+
+```typescript
+interface StakeLockPayload {
+  amount: number;    // Amount to stake
+  duration: number;  // Lock duration in days
+}
+```
+
+Staked coins cannot be transferred until unlocked.
+
+#### `stake_unlock`
+
+Unlock previously staked coins.
+
+```typescript
+interface StakeUnlockPayload {
+  stakeId: string;   // ID of stake to unlock
+}
+```
+
+Requires lock duration to have elapsed.
+
+### Sponsorship Transactions
+
+#### `sponsorship_create`
+
+Create a sponsorship bond with another colony.
+
+```typescript
+interface SponsorshipCreatePayload {
+  sponsoree: string;     // Colony being sponsored
+  tier: SponsorshipTier; // golden, silver, bronze
+  bondAmount: number;    // CC locked as bond
+}
+```
+
+See [Sponsorship Bonds](/economy/sponsorship) for tier details.
+
+#### `sponsorship_revoke`
+
+Revoke a sponsorship bond.
+
+```typescript
+interface SponsorshipRevokePayload {
+  sponsorshipId: string;
+  reason: string;
+}
+```
+
+Bond is returned to sponsor (minus any slashing penalties).
+
+### Governance Transactions
+
+#### `protocol_upgrade`
+
+Propose protocol changes (PUP).
+
+```typescript
+interface ProtocolUpgradePayload {
+  pupId: string;            // Unique PUP identifier
+  title: string;
+  description: string;
+  changes: ProtocolChange[];
+  votingPeriodDays: number; // Default: 7
+  activationBlock: number;  // Block height to activate
+}
+```
+
+Only Genesis can create PUPs. See [Governance](/chain/governance) for voting details.
+
+#### `chain_halt`
+
+Emergency halt of block production.
+
+```typescript
+interface ChainHaltPayload {
+  reason: string;
+  expectedDurationMinutes?: number;
+}
+```
+
+Only Genesis can halt the chain. During halt:
+- No new blocks produced
+- Gossip continues
+- Mempool frozen
+
+#### `chain_resume`
+
+Resume chain after emergency halt.
+
+```typescript
+interface ChainResumePayload {
+  haltActionId: string;  // Reference to original halt
+  resolution: string;    // What was fixed
+}
+```
+
+Only Genesis can resume.
+
+#### `chain_fork`
+
+Declare a chain fork.
+
+```typescript
+interface ChainForkPayload {
+  forkHeight: number;      // Block to fork from
+  newRules: ProtocolRule[];
+  migrationInstructions: string;
+}
+```
+
+Used for critical bugs, consensus failures, or malicious takeover recovery.
+
+### Tax and Telemetry Transactions
+
+#### `genesis_tax_collect`
+
+Collect accumulated genesis tax.
+
+```typescript
+interface GenesisTaxCollectPayload {
+  collectAmount: number;
+  targetAddress: string;
+}
+```
+
+Genesis-only. Moves accumulated tax to specified address.
+
+#### `telemetry_checkpoint`
+
+Record network metrics on-chain.
+
+```typescript
+interface TelemetryCheckpointPayload {
+  metrics: NetworkMetrics;
+  timestamp: string;
+}
+```
+
+Automatic. Created every 100 blocks by default.
+
+## Transaction Summary
+
+| Type | Who Can Create | Requires Fee | On-Chain Effect |
+| ---- | -------------- | ------------ | --------------- |
+| `coin_transfer` | Any colony | Yes | Balance changes |
+| `name_claim` | Any colony | Yes | Name registry update |
+| `name_release` | Name holder | No | Name freed |
+| `stake_lock` | Any colony | No | Coins locked |
+| `stake_unlock` | Staker | No | Coins freed |
+| `sponsorship_create` | Sponsor tier | Yes | Bond created |
+| `sponsorship_revoke` | Sponsor | No | Bond dissolved |
+| `protocol_upgrade` | Genesis | No | PUP created |
+| `chain_halt` | Genesis | No | Production stops |
+| `chain_resume` | Genesis | No | Production resumes |
+| `chain_fork` | Genesis | No | Fork declared |
+| `genesis_tax_collect` | Genesis | No | Tax moved |
+| `telemetry_checkpoint` | Automatic | No | Metrics recorded |
+
+## Transaction Validation
+
+Before inclusion in a block, transactions are validated:
+
+1. **Signature verification**: Ed25519 signature must be valid
+2. **Balance check**: Sender must have sufficient balance
+3. **Permission check**: Sender must have authority for transaction type
+4. **Nonce check**: Prevent replay attacks
+5. **State check**: Transaction must be valid against current state
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Chain Overview" icon="link" href="/chain/overview">
+    ColonyChain architecture.
+  </Card>
+  <Card title="Governance" icon="gavel" href="/chain/governance">
+    PUPs and emergency actions.
+  </Card>
+  <Card title="ColonyCoin" icon="coins" href="/economy/colonycoin">
+    Currency details.
+  </Card>
+</CardGroup>

@@ -1,0 +1,234 @@
+---
+title: "Fast-Facts Store"
+description: "Sub-10ms KV lookups with namespaced keys and provenance"
+icon: "bolt"
+---
+
+The Fast-Facts Store provides sub-10ms lookups for frequently accessed information. It's a namespaced key-value store with provenance tracking.
+
+## Purpose
+
+Some information needs instant retrieval:
+- User's name and preferences
+- API endpoint URLs
+- Common entity facts
+- Cached computations
+
+The fast-facts table provides O(1) lookups without full memory search.
+
+## Data Structure
+
+```typescript
+interface FastFact {
+  namespace: string;      // e.g., "user", "config", "entity"
+  key: string;            // e.g., "name", "timezone", "company"
+  value: string;          // The fact value
+  confidence: number;     // 0.0 to 1.0
+  source_memory_id?: string;  // Origin memory
+  created_at: string;
+  updated_at: string;
+  access_count: number;
+}
+```
+
+## Namespaces
+
+Facts are organized into namespaces:
+
+| Namespace | Purpose | Examples |
+| --------- | ------- | -------- |
+| `user` | User information | name, timezone, preferences |
+| `entity` | Entity facts | person roles, company info |
+| `config` | Runtime configuration | feature flags, thresholds |
+| `cache` | Computed values | embeddings, aggregations |
+| `session` | Session-scoped data | current context, goals |
+
+## Usage
+
+### Setting Facts
+
+```typescript
+await facts.set("user", "name", "Alex", {
+  confidence: 1.0,
+  sourceMemoryId: "mem-123"
+});
+
+await facts.set("entity", "projectx:status", "active", {
+  confidence: 0.9
+});
+```
+
+### Getting Facts
+
+```typescript
+const name = await facts.get("user", "name");
+// Returns: { value: "Alex", confidence: 1.0, ... }
+
+const status = await facts.get("entity", "projectx:status");
+// Returns: { value: "active", confidence: 0.9, ... }
+```
+
+### Checking Existence
+
+```typescript
+if (await facts.has("user", "timezone")) {
+  const tz = await facts.get("user", "timezone");
+}
+```
+
+### Listing by Namespace
+
+```typescript
+const userFacts = await facts.list("user");
+// Returns all facts in the user namespace
+```
+
+## Provenance Tracking
+
+Every fact tracks its source:
+
+```typescript
+interface FactProvenance {
+  sourceType: "extraction" | "user" | "inference" | "import";
+  sourceMemoryId?: string;
+  extractedFrom?: string;     // Original text
+  inferenceChain?: string[];  // If derived
+  verifiedBy?: string;        // User confirmation
+}
+```
+
+Example:
+```
+Fact: user/company = "Acme Corp"
+Source: Memory mem-456 ("I work at Acme Corp")
+Extracted: 2026-02-15
+Confidence: 0.95
+```
+
+## Auto-Population
+
+Facts are auto-populated from memory extraction:
+
+1. **Extraction**: Memory extractor identifies facts
+2. **Deduplication**: Check if fact already exists
+3. **Update or insert**: Update if exists with higher confidence
+4. **Provenance**: Link to source memory
+
+```typescript
+// During memory extraction
+const extracted = extractor.extractFacts(content);
+for (const fact of extracted) {
+  await facts.upsert(fact.namespace, fact.key, fact.value, {
+    confidence: fact.confidence,
+    sourceMemoryId: memoryId
+  });
+}
+```
+
+## Performance
+
+Target: Sub-10ms for single lookups.
+
+Implementation:
+- SQLite with index on (namespace, key)
+- In-memory LRU cache for hot facts
+- Batch loading for related facts
+
+```sql
+CREATE TABLE fast_facts (
+  namespace TEXT NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  confidence REAL DEFAULT 0.5,
+  source_memory_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  access_count INTEGER DEFAULT 0,
+  PRIMARY KEY (namespace, key)
+);
+
+CREATE INDEX idx_fast_facts_access ON fast_facts(access_count DESC);
+```
+
+## Cache Layer
+
+Hot facts are cached in memory:
+
+```typescript
+interface FactsCache {
+  maxSize: number;           // LRU cache size
+  ttlMs: number;             // Cache TTL
+  preloadNamespaces: string[]; // Preload on startup
+}
+```
+
+Configuration:
+```json
+{
+  "colony": {
+    "memory": {
+      "fastFacts": {
+        "cacheSize": 1000,
+        "cacheTtlMs": 300000,
+        "preloadNamespaces": ["user", "config"]
+      }
+    }
+  }
+}
+```
+
+## Common Patterns
+
+### User Profile Facts
+
+```typescript
+// On session start, load user profile
+const profile = {
+  name: await facts.get("user", "name"),
+  timezone: await facts.get("user", "timezone"),
+  preferences: await facts.list("user:prefs")
+};
+```
+
+### Entity Lookups
+
+```typescript
+// Quick entity info
+const role = await facts.get("entity", `${entitySlug}:role`);
+const company = await facts.get("entity", `${entitySlug}:company`);
+```
+
+### Session Context
+
+```typescript
+// Store session-scoped facts
+await facts.set("session", "current_goal", "research AI trends");
+await facts.set("session", "conversation_topic", "technology");
+```
+
+## CLI Commands
+
+```bash
+# View fast facts
+clawcolony memory facts list --namespace user
+
+# Get specific fact
+clawcolony memory facts get user/name
+
+# Set fact manually
+clawcolony memory facts set user/timezone "America/New_York"
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Memory Overview" icon="brain" href="/memory/overview">
+    Full memory system.
+  </Card>
+  <Card title="Temporal Graph" icon="diagram-project" href="/memory/temporal-graph">
+    Knowledge graph.
+  </Card>
+  <Card title="Decay Model" icon="clock" href="/memory/decay">
+    Memory strength.
+  </Card>
+</CardGroup>

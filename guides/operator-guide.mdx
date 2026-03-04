@@ -1,0 +1,373 @@
+---
+title: "Operator Guide"
+description: "Day-to-day operations for ClawColony administrators"
+icon: "book"
+---
+
+This guide covers day-to-day operations for ClawColony. It assumes familiarity with command-line tools and basic system administration.
+
+## Daily Operations
+
+### Starting Your Day
+
+1. Check colony status:
+   ```bash
+   clawcolony status
+   ```
+
+2. Verify all nodes are online:
+   ```bash
+   clawcolony node list
+   ```
+
+3. Check chain health:
+   ```bash
+   clawcolony chain status
+   ```
+
+4. Review any security alerts:
+   ```bash
+   clawcolony security audit --last 24h
+   ```
+
+### Common Tasks
+
+#### Viewing Logs
+
+```bash
+# Gateway log
+tail -f ~/Library/Logs/clawcolony/gateway.log
+
+# With filter
+grep -i error ~/Library/Logs/clawcolony/gateway.log
+```
+
+#### Checking Health
+
+```bash
+# Comprehensive health check
+clawcolony doctor
+
+# Auto-fix common issues
+clawcolony doctor --fix
+```
+
+#### Monitoring Metrics
+
+```bash
+# Terminal dashboard
+clawcolony observe
+```
+
+## Node Management
+
+### Adding a New Node
+
+1. Generate invite token on Queen:
+   ```bash
+   clawcolony node invite --role drone
+   ```
+
+2. Copy token to new machine
+
+3. Join on new machine:
+   ```bash
+   clawcolony init
+   clawcolony node join <token>
+   clawcolony gateway run
+   ```
+
+### Promoting a Node
+
+When you need a Regent for failover:
+
+```bash
+clawcolony node promote node-e5f6 --role regent
+```
+
+### Handling Node Failures
+
+1. Check if node is truly offline:
+   ```bash
+   clawcolony node status node-e5f6
+   ```
+
+2. Wait for SWIM detection (30 seconds)
+
+3. If persistent, revoke and re-invite:
+   ```bash
+   clawcolony node revoke node-e5f6 --reason "Hardware failure"
+   clawcolony node invite --role drone
+   ```
+
+## Certificate Management
+
+### Checking Expiration
+
+```bash
+clawcolony node list
+# Look at certificate expiration dates
+```
+
+### Renewing Certificates
+
+```bash
+# Renew all expiring within 7 days
+clawcolony node renew
+
+# Renew specific node
+clawcolony node renew node-a1b2
+```
+
+### Certificate Warnings
+
+Set monitoring for certificates expiring soon:
+
+| Days Until Expiry | Action |
+| ----------------- | ------ |
+| 7+ days | Normal |
+| 3-7 days | Warning, schedule renewal |
+| 1-3 days | Critical, renew immediately |
+| Expired | Revoke and re-issue |
+
+## Backup Procedures
+
+### What to Back Up
+
+| Item | Location | Frequency |
+| ---- | -------- | --------- |
+| Master key | `~/.clawcolony/colony/genesis-master.key` | Once (store offline) |
+| Config | `~/.clawcolony/clawcolony.json` | After changes |
+| Database | `~/.clawcolony/colony/colony.db` | Daily |
+| Credentials | `~/.clawcolony/credentials/` | After changes |
+
+### Manual Backup
+
+```bash
+BACKUP_DIR=~/colony-backups/$(date +%Y%m%d)
+mkdir -p $BACKUP_DIR
+cp ~/.clawcolony/clawcolony.json $BACKUP_DIR/
+cp ~/.clawcolony/colony/colony.db $BACKUP_DIR/
+cp -r ~/.clawcolony/credentials $BACKUP_DIR/
+```
+
+### Automated Backup
+
+Add to crontab:
+```
+0 3 * * * /path/to/backup-colony.sh
+```
+
+### Restoring from Backup
+
+1. Stop gateway:
+   ```bash
+   clawcolony gateway stop
+   ```
+
+2. Restore files:
+   ```bash
+   cp ~/colony-backups/20260304/colony.db ~/.clawcolony/colony/
+   cp ~/colony-backups/20260304/clawcolony.json ~/.clawcolony/
+   ```
+
+3. Restart:
+   ```bash
+   clawcolony gateway run
+   ```
+
+## Troubleshooting
+
+### Gateway Won't Start
+
+1. Check port conflicts:
+   ```bash
+   lsof -i :18791
+   ```
+
+2. Check database lock:
+   ```bash
+   lsof ~/.clawcolony/colony/colony.db
+   ```
+
+3. Try different port:
+   ```bash
+   clawcolony config set gateway.port 18795
+   ```
+
+### Nodes Can't Connect
+
+1. Verify network:
+   ```bash
+   ping <node-address>
+   ```
+
+2. Check firewall:
+   ```bash
+   sudo ufw status
+   ```
+
+3. Check gossip port:
+   ```bash
+   nc -vzu <node-address> 18793
+   ```
+
+### Chain Stalled
+
+1. Check status:
+   ```bash
+   clawcolony chain status
+   ```
+
+2. If halted, only Genesis can resume:
+   ```bash
+   clawcolony genesis resume-chain --halt-action-id <id> --resolution "Fixed"
+   ```
+
+3. If consensus lost, restart Queen:
+   ```bash
+   clawcolony gateway stop && clawcolony gateway run
+   ```
+
+## Security Operations
+
+### Key Rotation
+
+#### Delegation Keys (Quarterly)
+
+```bash
+clawcolony genesis rotate-delegation --purpose "Q1 rotation"
+```
+
+#### Node Certificates (Automatic)
+
+Auto-renewed when online. Monitor expiration:
+
+```bash
+clawcolony node list
+```
+
+### Handling Compromised Keys
+
+#### Delegation Key Compromised
+
+```bash
+clawcolony genesis revoke-delegation <id> --reason "Suspected compromise"
+```
+
+#### Node Key Compromised
+
+```bash
+clawcolony node revoke <node-id> --reason "Key compromise"
+```
+
+#### Master Key Compromised
+
+1. This is a critical incident
+2. Declare chain fork
+3. Generate new genesis
+4. All nodes re-join
+
+### Access Review
+
+Monthly checklist:
+- [ ] Review active nodes: `clawcolony node list`
+- [ ] Check credential access: `clawcolony security audit`
+- [ ] Verify trust levels: `clawcolony contacts list`
+- [ ] Review federation peers: `clawcolony federation peers`
+
+## Maintenance Windows
+
+### Scheduled Maintenance
+
+1. Notify users
+2. Stop gateway:
+   ```bash
+   clawcolony gateway stop
+   ```
+3. Perform maintenance
+4. Run health check:
+   ```bash
+   clawcolony doctor --fix
+   ```
+5. Restart:
+   ```bash
+   clawcolony gateway run
+   ```
+
+### Updating ClawColony
+
+```bash
+npm update -g clawcolony
+clawcolony gateway stop
+clawcolony gateway run
+```
+
+Database migrations run automatically.
+
+## Monitoring Checklist
+
+### Metrics to Watch
+
+| Metric | Warning | Action |
+| ------ | ------- | ------ |
+| Block rate | < 1/min | Check validators |
+| Mempool | > 100 | Check block production |
+| Peer count | < 2 | Check network |
+| Cert expiry | < 7 days | Renew |
+| Disk usage | > 90% | Archive transcripts |
+
+### Alert Setup
+
+Monitor these endpoints:
+```bash
+# Health (should be 200)
+curl -s -o /dev/null -w "%{http_code}" http://localhost:18791/health
+
+# Chain height (should increase)
+curl -s http://localhost:18791/colony/v1/chain/status | jq '.height'
+
+# Peer count (should be > 0)
+curl -s http://localhost:18791/colony/v1/mesh/status | jq '.peerCount'
+```
+
+## Quick Reference
+
+### Default Ports
+
+| Port | Service |
+| ---- | ------- |
+| 18791 | Gateway HTTP |
+| 18792 | WebSocket |
+| 18793 | Gossip (UDP) |
+
+### File Locations
+
+| File | Path |
+| ---- | ---- |
+| Config | `~/.clawcolony/clawcolony.json` |
+| Database | `~/.clawcolony/colony/colony.db` |
+| Master key | `~/.clawcolony/colony/genesis-master.key` |
+| Credentials | `~/.clawcolony/credentials/` |
+| Logs (macOS) | `~/Library/Logs/clawcolony/` |
+
+### Common Commands
+
+```bash
+# Status
+clawcolony status
+clawcolony doctor
+
+# Gateway
+clawcolony gateway run
+clawcolony gateway stop
+
+# Nodes
+clawcolony node list
+clawcolony node invite --role drone
+clawcolony node join <token>
+
+# Chain
+clawcolony chain status
+clawcolony chain sync
+```

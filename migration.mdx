@@ -1,0 +1,130 @@
+---
+title: "Migration from OpenClaw"
+description: "Migrate your existing OpenClaw installation to ClawColony in one command"
+icon: "arrow-right-arrow-left"
+---
+
+Already running OpenClaw? Migrate in one command:
+
+```bash
+clawcolony migrate --from openclaw
+```
+
+## What the Migration Does
+
+The migration wizard:
+
+1. **Discovers** your OpenClaw installation at `~/.openclaw`
+2. **Copies** configuration, databases, and credentials to `~/.clawcolony`
+3. **Applies** Colony schema migrations to the database
+4. **Verifies** channel compatibility
+5. **Seeds** the fast-facts table from MEMORY.md
+
+Your original OpenClaw installation remains unchanged.
+
+## Port Mapping
+
+Run both side-by-side during migration testing:
+
+| Service | OpenClaw | ClawColony |
+| ------- | -------- | ---------- |
+| Gateway | 18789    | 18791      |
+| API     | 18790    | 18792      |
+| Gossip  | N/A      | 18793      |
+
+## Rollback
+
+If something goes wrong, rollback to your original state:
+
+```bash
+clawcolony migrate --rollback
+```
+
+This removes the ClawColony data directory and leaves OpenClaw untouched.
+
+## Troubleshooting
+
+### Migration Failed During Database Copy
+
+Check disk space:
+
+```bash
+df -h ~/.clawcolony
+```
+
+Verify source database is not locked:
+
+```bash
+lsof ~/.openclaw/workspace/data/loops.db
+```
+
+Run integrity check on source database:
+
+```bash
+sqlite3 ~/.openclaw/workspace/data/loops.db "PRAGMA integrity_check;"
+```
+
+If integrity check fails, restore from backup before migrating.
+
+### Port Conflicts
+
+If you see port conflicts, check which process is using the port:
+
+```bash
+# OpenClaw
+lsof -i :18789
+
+# ClawColony
+lsof -i :18791
+```
+
+Stop the conflicting service before running migration.
+
+### Channel Compatibility
+
+ClawColony inherits all 39 channels from OpenClaw. If channel verification fails during migration:
+
+1. Check that your channel plugins are up to date
+2. Verify API credentials are still valid
+3. Run `clawcolony doctor` after migration to identify issues
+
+## Post-Migration Verification
+
+After migration completes:
+
+```bash
+# Check colony status
+clawcolony status
+
+# Run health check
+clawcolony doctor
+
+# Verify gateway starts
+clawcolony gateway run
+```
+
+Test your channels:
+
+```bash
+curl http://localhost:18791/health
+```
+
+## What Gets Migrated
+
+| Component | Location | Notes |
+| --------- | -------- | ----- |
+| Configuration | `~/.openclaw/config/` | Converted to new schema |
+| Database | `~/.openclaw/workspace/data/` | Schema migrations applied |
+| Credentials | `~/.openclaw/credentials/` | Encrypted vault migrated |
+| Transcripts | `~/.openclaw/transcripts/` | Copied as-is |
+| Plugins | `~/.openclaw/plugins/` | Compatibility verified |
+
+## What's New After Migration
+
+After migrating, you gain access to:
+
+- **Memory Intelligence**: 15 cognitive features including decay, extraction, consolidation
+- **Colony Mesh**: Multi-node coordination with Queen/Regent/Drone roles
+- **ColonyChain**: Tamper-proof records and governance
+- **Federation**: Inter-colony communication with trust levels
+- **Cognitive Plugins**: Goal engine, mind model, predictive engine

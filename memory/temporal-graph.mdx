@@ -1,0 +1,245 @@
+---
+title: "Temporal Knowledge Graph"
+description: "Memories as nodes with 8 edge types for causal reasoning"
+icon: "diagram-project"
+---
+
+The Temporal Knowledge Graph represents memories as nodes connected by typed edges. This enables causal reasoning, contradiction detection, and contextual retrieval.
+
+## Graph Structure
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Temporal Knowledge Graph                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│    ┌─────────┐   caused_by    ┌─────────┐                   │
+│    │ Memory  │◄──────────────│ Memory  │                   │
+│    │   A     │               │   B     │                   │
+│    └────┬────┘               └────┬────┘                   │
+│         │                         │                         │
+│         │ led_to                  │ supports                │
+│         ▼                         ▼                         │
+│    ┌─────────┐  contradicts  ┌─────────┐                   │
+│    │ Memory  │◄─────────────►│ Memory  │                   │
+│    │   C     │               │   D     │                   │
+│    └─────────┘               └─────────┘                   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Edge Types
+
+| Edge | Meaning |
+| ---- | ------- |
+| `caused_by` | A was caused by B |
+| `led_to` | A led to B happening |
+| `contradicts` | A contradicts B |
+| `supports` | A supports/confirms B |
+| `related_to` | General association |
+| `preceded` | A happened before B |
+| `followed` | A happened after B |
+| `part_of` | A is part of B |
+
+## Edge Structure
+
+```typescript
+interface GraphEdge {
+  id: string;
+  from_memory_id: string;
+  to_memory_id: string;
+  edge_type: EdgeType;
+  strength: number;         // 0.0 to 1.0
+  created_at: string;
+  context?: string;         // Why this edge exists
+}
+```
+
+## Causal Chain Tracking
+
+The graph enables "why" and "what-if" queries:
+
+### Forward Traversal (led_to)
+
+"What happened because of this?"
+
+```typescript
+function getConsequences(memoryId: string, depth: number = 3): Memory[] {
+  return traverseGraph(memoryId, "led_to", depth);
+}
+```
+
+### Backward Traversal (caused_by)
+
+"Why did this happen?"
+
+```typescript
+function getCauses(memoryId: string, depth: number = 3): Memory[] {
+  return traverseGraph(memoryId, "caused_by", depth);
+}
+```
+
+### Example Chain
+
+```
+Decision: Hired Sarah
+    │
+    ├── led_to: Team expanded to 5
+    │       │
+    │       └── led_to: Completed project on time
+    │
+    └── caused_by: Needed frontend expertise
+            │
+            └── caused_by: Redesign project started
+```
+
+## Contradiction Detection
+
+When memories contradict:
+
+1. **Detection**: New memory content conflicts with existing
+2. **Edge creation**: `contradicts` edge added
+3. **Resolution**: Based on recency and trust score
+
+```typescript
+interface ContradictionResolution {
+  kept: Memory;
+  deprecated: Memory;
+  reason: "recency" | "trust" | "explicit";
+}
+```
+
+Resolution rules:
+- More recent memory wins (default)
+- Higher trust score wins (if configured)
+- User can explicitly resolve
+
+## SQLite Implementation
+
+The graph uses recursive CTEs for traversal:
+
+```sql
+-- Get all consequences (led_to chain)
+WITH RECURSIVE consequences AS (
+  SELECT to_memory_id, 1 as depth
+  FROM memory_edges
+  WHERE from_memory_id = ? AND edge_type = 'led_to'
+
+  UNION ALL
+
+  SELECT e.to_memory_id, c.depth + 1
+  FROM memory_edges e
+  JOIN consequences c ON e.from_memory_id = c.to_memory_id
+  WHERE e.edge_type = 'led_to' AND c.depth < 5
+)
+SELECT m.*
+FROM memories m
+JOIN consequences c ON m.id = c.to_memory_id
+ORDER BY c.depth;
+```
+
+## Graph Queries
+
+### Get Related Memories
+
+```typescript
+const related = await graph.getRelated(memoryId, {
+  edgeTypes: ["related_to", "supports"],
+  maxDepth: 2,
+  minStrength: 0.5
+});
+```
+
+### Find Contradictions
+
+```typescript
+const contradictions = await graph.getContradictions(memoryId);
+// Returns memories that contradict this one
+```
+
+### Build Context Chain
+
+```typescript
+const context = await graph.buildContext(memoryId, {
+  includeCauses: true,
+  includeEffects: true,
+  maxNodes: 10
+});
+```
+
+## Edge Strength
+
+Edge strength indicates confidence in the relationship:
+
+| Strength | Meaning |
+| -------- | ------- |
+| 0.9-1.0 | Explicit user confirmation |
+| 0.7-0.9 | Strong pattern detection |
+| 0.5-0.7 | Moderate inference |
+| 0.3-0.5 | Weak inference |
+| 0.0-0.3 | Speculative |
+
+Edges below 0.3 are pruned during maintenance.
+
+## Temporal Ordering
+
+The `preceded` and `followed` edges maintain temporal order:
+
+```typescript
+interface TemporalChain {
+  events: Memory[];
+  startTime: string;
+  endTime: string;
+  gaps: Array<{ after: string; before: string; durationMs: number }>;
+}
+```
+
+Useful for:
+- Reconstructing event sequences
+- Identifying missing context
+- Understanding timelines
+
+## Graph Maintenance
+
+Periodic maintenance tasks:
+
+1. **Prune weak edges**: Remove edges below strength threshold
+2. **Merge redundant paths**: Combine similar edge chains
+3. **Update strengths**: Decay unused edges
+4. **Detect orphans**: Find disconnected memory clusters
+
+```bash
+clawcolony memory graph-maintenance
+```
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "memory": {
+      "graph": {
+        "enabled": true,
+        "maxDepth": 5,
+        "minEdgeStrength": 0.3,
+        "autoContradictionResolution": true,
+        "contradictionStrategy": "recency"
+      }
+    }
+  }
+}
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Memory Overview" icon="brain" href="/memory/overview">
+    Full memory system.
+  </Card>
+  <Card title="Decay Model" icon="clock" href="/memory/decay">
+    Strength calculation.
+  </Card>
+  <Card title="Fast-Facts" icon="bolt" href="/memory/fast-facts">
+    Quick lookups.
+  </Card>
+</CardGroup>

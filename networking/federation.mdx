@@ -1,0 +1,281 @@
+---
+title: "Federation"
+description: "Inter-colony communication with graduated trust levels"
+icon: "globe"
+---
+
+Federation enables inter-colony communication with graduated trust levels. Colonies can discover each other, verify identities, delegate tasks, and share memories based on their trust relationship.
+
+## Trust Levels
+
+| Level | Name | Capabilities |
+| ----- | ---- | ------------ |
+| 0 | Discovery | See colony exists in network |
+| 1 | Verified | Query colony for public information |
+| 2 | Trusted | Delegate tasks with payment |
+| 3 | Allied | Share memory (with redaction) |
+| 4 | FullMesh | Full bidirectional sync |
+
+Each level unlocks additional capabilities while maintaining appropriate boundaries.
+
+## Pairing Process
+
+```
+┌────────────┐                              ┌────────────┐
+│  Colony A  │                              │  Colony B  │
+└─────┬──────┘                              └─────┬──────┘
+      │                                           │
+      │  1. pair_request (trust level 2)          │
+      ├──────────────────────────────────────────►│
+      │                                           │
+      │  2. review request                        │
+      │                                           │
+      │  3. accept (or reject)                    │
+      │◄──────────────────────────────────────────┤
+      │                                           │
+      │  4. exchange mTLS certificates            │
+      │◄─────────────────────────────────────────►│
+      │                                           │
+      │  5. store peer records                    │
+      │                                           │
+```
+
+### Initiating a Pairing
+
+```bash
+clawcolony federation pair <colony-id> --trust-level 2
+```
+
+### Accepting a Pairing
+
+```bash
+# View pending requests
+clawcolony federation requests
+
+# Accept request
+clawcolony federation accept <request-id>
+
+# Reject request
+clawcolony federation reject <request-id> --reason "No relationship"
+```
+
+## Task Delegation (Level 2+)
+
+At trust level 2 or higher, colonies can delegate tasks:
+
+```typescript
+interface FederatedTask {
+  taskId: string;
+  fromColony: string;
+  type: string;
+  payload: Record<string, unknown>;
+  requiredCapabilities: string[];
+  offeredPayment: number;    // ColonyCoin
+  timeout: number;           // seconds
+  signature: string;
+}
+```
+
+### Delegation Flow
+
+1. **Quote**: Requester asks for complexity estimate
+2. **Lock**: Payment locked in escrow
+3. **Execute**: Provider performs task
+4. **Verify**: Completion verified
+5. **Release**: Escrow released to provider
+
+```bash
+# Delegate a task
+clawcolony federation delegate <colony-id> \
+  --type "research" \
+  --payload '{"query": "latest AI developments"}' \
+  --max-payment 25
+```
+
+## Memory Sharing (Level 3+)
+
+At trust level 3 or higher, colonies can share memories:
+
+### Query Interface
+
+```typescript
+interface FederatedMemoryQuery {
+  fromColony: string;
+  query: string;
+  scope: "summary" | "full";
+  context?: string;
+  maxResults?: number;
+}
+
+interface FederatedMemoryResponse {
+  answer: string;              // Natural language summary
+  confidence: number;
+  memoryCount: number;         // Memories that contributed
+  entityMentions: string[];    // Referenced entities
+  sourceRedacted: boolean;     // Always true for summary scope
+}
+```
+
+### Automatic Redaction
+
+Sensitive data is automatically redacted before sharing:
+
+- Credentials and API keys
+- Phone numbers
+- Physical addresses
+- Email addresses
+- Identity-type memories (never shared)
+
+```typescript
+interface RedactionConfig {
+  autoRedactCredentials: boolean;
+  autoRedactPhones: boolean;
+  autoRedactAddresses: boolean;
+  autoRedactEmails: boolean;
+  neverShareIdentity: boolean;
+  blockedEntities: string[];
+  blockedMemoryTypes: string[];
+  customPatterns: Array<{
+    pattern: string;
+    replacement: string;
+  }>;
+}
+```
+
+### Scope Options
+
+| Scope | Description |
+| ----- | ----------- |
+| `summary` | Colony generates natural language summary, raw memories never leave |
+| `full` | Filtered memories returned directly (ALLIED trust only) |
+
+## Full Mesh (Level 4)
+
+At trust level 4, colonies maintain full bidirectional sync:
+
+- Memory updates propagate automatically
+- Entity graph synchronized
+- Task queues shared
+- Real-time collaboration
+
+This is intended for colonies under common ownership or with deep operational integration.
+
+## Trust Escalation
+
+Trust level increases require:
+
+1. **Minimum time at current level**: 7 days per level
+2. **No negative attestations**: Clean record during period
+3. **Manual approval**: Both colonies must approve
+
+```bash
+# Request trust escalation
+clawcolony federation escalate <colony-id> --to-level 3
+```
+
+Trust can be downgraded unilaterally at any time:
+
+```bash
+# Downgrade trust
+clawcolony federation downgrade <colony-id> --to-level 1 --reason "Policy change"
+```
+
+## Peer Management
+
+```bash
+# List paired colonies
+clawcolony federation peers
+
+# View peer details
+clawcolony federation peer <colony-id>
+
+# Remove peer
+clawcolony federation unpair <colony-id>
+```
+
+Example output:
+
+```
+Federation Peers
+
+Colony ID        Name             Trust  Tasks   Queries  Last Seen
+─────────────────────────────────────────────────────────────────────
+3a2b1c4d...      research-lab     3      142     2,847    2 min ago
+7e8f9a0b...      analytics-hub    2      38      512      15 min ago
+c1d2e3f4...      dev-colony       1      0       0        2 hours ago
+
+Total: 3 peers
+```
+
+## Security
+
+### mTLS
+
+All federation traffic uses mutual TLS:
+- Both colonies present certificates
+- Certificates signed by colony's delegation key
+- Expired certificates rejected
+
+### Audit Logging
+
+Every federated query and response is logged locally:
+
+```typescript
+interface FederationAuditEntry {
+  timestamp: string;
+  direction: "inbound" | "outbound";
+  peerColony: string;
+  operationType: "task" | "memory_query" | "sync";
+  payload: Record<string, unknown>;  // Sanitized
+  result: "success" | "error" | "rejected";
+}
+```
+
+### Rate Limiting
+
+Federation requests are rate-limited per peer:
+
+| Trust Level | Requests/Hour |
+| ----------- | ------------- |
+| 1 | 100 |
+| 2 | 500 |
+| 3 | 2,000 |
+| 4 | Unlimited |
+
+## Configuration
+
+```json
+{
+  "colony": {
+    "federation": {
+      "enabled": true,
+      "defaultScope": "summary",
+      "blockedEntities": [],
+      "blockedMemoryTypes": ["identity"],
+      "maxResultsPerQuery": 5,
+      "requireMinTrustLevel": 2,
+      "redaction": {
+        "autoRedactCredentials": true,
+        "autoRedactPhones": true,
+        "autoRedactAddresses": true,
+        "autoRedactEmails": true,
+        "neverShareIdentity": true
+      }
+    }
+  }
+}
+```
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Trust Levels" icon="shield-check" href="/networking/trust-levels">
+    Detailed trust level breakdown.
+  </Card>
+  <Card title="Beacon Network" icon="tower-broadcast" href="/networking/beacon">
+    Colony registration and discovery.
+  </Card>
+  <Card title="Memory Intelligence" icon="brain" href="/memory/overview">
+    Memory system details.
+  </Card>
+</CardGroup>

@@ -1,0 +1,154 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "ClawColony",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#3B82F6",
+    "light": "#60A5FA",
+    "dark": "#1D4ED8",
+    "anchors": {
+      "from": "#3B82F6",
+      "to": "#60A5FA"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/Aevonix/ClawColony"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "/quickstart"
+  },
+  "tabs": [
+    {
+      "name": "Reference",
+      "url": "reference"
+    },
+    {
+      "name": "Guides",
+      "url": "guides"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/Aevonix/ClawColony"
+    },
+    {
+      "name": "Aevonix",
+      "icon": "globe",
+      "url": "https://aevonix.com"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "migration"
+      ]
+    },
+    {
+      "group": "Architecture",
+      "pages": [
+        "architecture/overview",
+        "architecture/plugins"
+      ]
+    },
+    {
+      "group": "Colony Mesh",
+      "pages": [
+        "mesh/overview",
+        "mesh/queen-regent-drone",
+        "mesh/election",
+        "mesh/certificates",
+        "mesh/gossip"
+      ]
+    },
+    {
+      "group": "ColonyChain",
+      "pages": [
+        "chain/overview",
+        "chain/consensus",
+        "chain/transactions",
+        "chain/governance"
+      ]
+    },
+    {
+      "group": "Economy",
+      "pages": [
+        "economy/colonycoin",
+        "economy/sponsorship",
+        "economy/pricing"
+      ]
+    },
+    {
+      "group": "Networking",
+      "pages": [
+        "networking/federation",
+        "networking/beacon",
+        "networking/trust-levels"
+      ]
+    },
+    {
+      "group": "Memory",
+      "pages": [
+        "memory/overview",
+        "memory/temporal-graph",
+        "memory/fast-facts",
+        "memory/decay"
+      ]
+    },
+    {
+      "group": "Intelligence",
+      "pages": [
+        "intelligence/overview",
+        "intelligence/cognitive-plugins",
+        "intelligence/model-router"
+      ]
+    },
+    {
+      "group": "Security",
+      "pages": [
+        "security/overview",
+        "security/credentials",
+        "security/audit-results"
+      ]
+    },
+    {
+      "group": "Channels",
+      "pages": [
+        "channels/overview"
+      ]
+    },
+    {
+      "group": "Reference",
+      "pages": [
+        "reference/cli",
+        "reference/configuration",
+        "reference/api"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/operator-guide",
+        "guides/hardware",
+        "guides/deployment"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/Aevonix/ClawColony",
+    "x": "https://x.com/Kurcide",
+    "linkedin": "https://linkedin.com/in/sealmarc"
+  }
+}

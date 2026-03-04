@@ -1,0 +1,526 @@
+---
+title: "CLI Reference"
+description: "Complete command reference for the clawcolony CLI"
+icon: "terminal"
+---
+
+The `clawcolony` CLI provides commands for all colony operations.
+
+## Global Options
+
+All commands accept:
+
+| Flag | Description |
+| ---- | ----------- |
+| `--colony-root <path>` | Override colony data directory |
+| `--config <path>` | Override config file path |
+| `--verbose` | Enable debug logging |
+| `--json` | Output in JSON format |
+| `--help` | Show help for command |
+
+## Initialization
+
+### `clawcolony init`
+
+Create a new colony.
+
+```bash
+clawcolony init
+```
+
+Interactive wizard guides through setup.
+
+Options:
+- `--standalone`: Skip network configuration
+- `--genesis`: Initialize as Genesis colony
+- `--name <name>`: Set colony name
+
+### `clawcolony migrate`
+
+Migrate from OpenClaw.
+
+```bash
+clawcolony migrate --from openclaw
+```
+
+Options:
+- `--from <source>`: Source to migrate from
+- `--rollback`: Undo migration
+- `--dry-run`: Preview without changes
+
+### `clawcolony wizard`
+
+Interactive setup wizard.
+
+```bash
+clawcolony wizard
+```
+
+## Gateway
+
+### `clawcolony gateway run`
+
+Start gateway in foreground.
+
+```bash
+clawcolony gateway run
+```
+
+### `clawcolony gateway start`
+
+Start gateway in background.
+
+```bash
+clawcolony gateway start
+```
+
+### `clawcolony gateway stop`
+
+Stop running gateway.
+
+```bash
+clawcolony gateway stop
+```
+
+### `clawcolony gateway status`
+
+Check gateway status.
+
+```bash
+clawcolony gateway status
+```
+
+## Status and Health
+
+### `clawcolony status`
+
+Colony overview.
+
+```bash
+clawcolony status
+```
+
+### `clawcolony doctor`
+
+System health check.
+
+```bash
+clawcolony doctor
+```
+
+Options:
+- `--fix`: Automatically repair common issues
+
+### `clawcolony observe`
+
+Terminal dashboard.
+
+```bash
+clawcolony observe
+```
+
+## Node Management
+
+### `clawcolony node list`
+
+List all nodes.
+
+```bash
+clawcolony node list
+```
+
+### `clawcolony node invite`
+
+Generate invite token.
+
+```bash
+clawcolony node invite --role drone
+```
+
+Options:
+- `--role <role>`: Role for new node (drone, sentinel, regent)
+- `--expires-in <duration>`: Token expiration (default: 7d)
+
+### `clawcolony node join`
+
+Join with invite token.
+
+```bash
+clawcolony node join <token>
+```
+
+### `clawcolony node promote`
+
+Promote node to higher role.
+
+```bash
+clawcolony node promote <node-id> --role regent
+```
+
+### `clawcolony node demote`
+
+Demote node to lower role.
+
+```bash
+clawcolony node demote <node-id>
+```
+
+### `clawcolony node revoke`
+
+Revoke node access.
+
+```bash
+clawcolony node revoke <node-id> --reason "Description"
+```
+
+Options:
+- `--reason <text>`: Reason for revocation
+- `--cascade`: Also revoke certs issued by this node
+
+### `clawcolony node discover`
+
+LAN auto-discovery.
+
+```bash
+clawcolony node discover --timeout 5000
+```
+
+### `clawcolony node certificate`
+
+View node certificate.
+
+```bash
+clawcolony node certificate <node-id>
+```
+
+### `clawcolony node renew`
+
+Renew certificates.
+
+```bash
+clawcolony node renew [node-id]
+```
+
+## Chain Operations
+
+### `clawcolony chain status`
+
+Chain metrics.
+
+```bash
+clawcolony chain status
+```
+
+### `clawcolony chain sync`
+
+Force chain sync.
+
+```bash
+clawcolony chain sync
+```
+
+### `clawcolony chain export`
+
+Export chain data.
+
+```bash
+clawcolony chain export --output chain.json
+```
+
+## Network
+
+### `clawcolony network status`
+
+Network connectivity.
+
+```bash
+clawcolony network status
+```
+
+### `clawcolony network peers`
+
+Connected peers.
+
+```bash
+clawcolony network peers
+```
+
+## Genesis Commands
+
+Only available on Genesis colonies.
+
+### `clawcolony genesis status`
+
+Genesis authority status.
+
+```bash
+clawcolony genesis status
+```
+
+### `clawcolony genesis invite`
+
+Create Golden/Silver/Bronze invitation.
+
+```bash
+clawcolony genesis invite --class golden
+```
+
+### `clawcolony genesis halt-chain`
+
+Emergency halt.
+
+```bash
+clawcolony genesis halt-chain --reason "Security incident"
+```
+
+### `clawcolony genesis resume-chain`
+
+Resume after halt.
+
+```bash
+clawcolony genesis resume-chain --halt-action-id <id> --resolution "Fixed"
+```
+
+### `clawcolony genesis rotate-delegation`
+
+Rotate delegation key.
+
+```bash
+clawcolony genesis rotate-delegation --purpose "Monthly rotation"
+```
+
+## Validator
+
+### `clawcolony validator status`
+
+Validator status.
+
+```bash
+clawcolony validator status
+```
+
+### `clawcolony validator apply`
+
+Apply to become validator.
+
+```bash
+clawcolony validator apply
+```
+
+## Data Management
+
+### `clawcolony embeddings backfill`
+
+Backfill semantic vectors.
+
+```bash
+clawcolony embeddings backfill
+```
+
+Options:
+- `--batch-size <n>`: Batch size (default: 32)
+
+### `clawcolony export`
+
+Export colony data.
+
+```bash
+clawcolony export --format json --output backup.json
+```
+
+### `clawcolony import`
+
+Import colony data.
+
+```bash
+clawcolony import backup.json
+```
+
+## Secrets
+
+### `clawcolony secrets list`
+
+List stored credentials.
+
+```bash
+clawcolony secrets list
+```
+
+### `clawcolony secrets set`
+
+Store credential.
+
+```bash
+clawcolony secrets set <key>
+```
+
+### `clawcolony secrets get`
+
+Retrieve credential.
+
+```bash
+clawcolony secrets get <key>
+```
+
+Options:
+- `--raw`: Output raw value
+
+### `clawcolony secrets delete`
+
+Delete credential.
+
+```bash
+clawcolony secrets delete <key>
+```
+
+## Configuration
+
+### `clawcolony config get`
+
+Get config value.
+
+```bash
+clawcolony config get gateway.port
+```
+
+### `clawcolony config set`
+
+Set config value.
+
+```bash
+clawcolony config set gateway.port 18795
+```
+
+### `clawcolony config list`
+
+List all config values.
+
+```bash
+clawcolony config list
+```
+
+## Memory
+
+### `clawcolony memory list`
+
+List memories.
+
+```bash
+clawcolony memory list --limit 20
+```
+
+### `clawcolony memory search`
+
+Search memories.
+
+```bash
+clawcolony memory search "project status"
+```
+
+### `clawcolony memory facts`
+
+Fast-facts operations.
+
+```bash
+clawcolony memory facts list --namespace user
+clawcolony memory facts get user/name
+clawcolony memory facts set user/timezone "America/New_York"
+```
+
+## Security
+
+### `clawcolony security status`
+
+Security status.
+
+```bash
+clawcolony security status
+```
+
+### `clawcolony security audit`
+
+View audit log.
+
+```bash
+clawcolony security audit --last 100
+```
+
+### `clawcolony security blocked`
+
+List blocked entities.
+
+```bash
+clawcolony security blocked
+```
+
+## Channels
+
+### `clawcolony channel status`
+
+Channel status.
+
+```bash
+clawcolony channel status
+```
+
+### `clawcolony channel enable`
+
+Enable channel.
+
+```bash
+clawcolony channel enable telegram
+```
+
+### `clawcolony channel test`
+
+Test channel connection.
+
+```bash
+clawcolony channel test telegram
+```
+
+## Economy
+
+### `clawcolony economy balance`
+
+Check ColonyCoin balance.
+
+```bash
+clawcolony economy balance
+```
+
+### `clawcolony economy history`
+
+Transaction history.
+
+```bash
+clawcolony economy history --limit 20
+```
+
+## Federation
+
+### `clawcolony federation peers`
+
+List federation peers.
+
+```bash
+clawcolony federation peers
+```
+
+### `clawcolony federation pair`
+
+Request pairing.
+
+```bash
+clawcolony federation pair <colony-id> --trust-level 2
+```
+
+## Router
+
+### `clawcolony router stats`
+
+Model routing statistics.
+
+```bash
+clawcolony router stats
+```

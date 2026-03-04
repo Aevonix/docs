@@ -1,0 +1,175 @@
+---
+title: "Intelligence Layer Overview"
+description: "24 cognitive components for adaptive agent behavior"
+icon: "lightbulb"
+---
+
+ClawColony's Intelligence Layer provides 24 cognitive components organized into three categories: Cognitive Plugins (8), Intelligence Plugins (8), and Extended Plugins (8). Together they form a perceive-predict-act loop for adaptive behavior.
+
+## Component Categories
+
+### Cognitive Plugins (8)
+
+Higher-order reasoning and planning:
+
+| Component | Purpose |
+| --------- | ------- |
+| Cognition Orchestrator | Plugin lifecycle, event processing, decision arbitration |
+| Goal Engine | Goal inference, decomposition, priority scoring, lifecycle tracking |
+| Mind Model | Theory of mind with Bayesian inference of mental states |
+| Predictive Engine | Monte Carlo scenario projection (best/expected/worst) |
+| Meta-Learner | Cognitive performance monitoring, gap detection |
+| Continuous Learner | Autonomous knowledge ingestion from feeds |
+| Synthesis Engine | Cross-domain insight discovery via graph analysis |
+| Reasoning Verifier | Pattern-based and LLM verification, fallacy detection |
+
+### Intelligence Plugins (8)
+
+Adaptive learning and task management:
+
+| Component | Purpose |
+| --------- | ------- |
+| Tool Learner | Tracks which tools succeed for which task patterns. Builds tool preference model. |
+| Self-Reflector | Evaluates response quality post-generation. Identifies improvement areas. |
+| Session Continuity | Generates context handoff documents between sessions. |
+| Preference Learner | Infers user preferences from behavioral signals. No explicit surveys. |
+| Anomaly Detector | Detects baseline deviations in behavior, metrics, and patterns. |
+| Task Planner | DAG-based task decomposition. Dependencies and parallelization. |
+| Research Orchestrator | Coordinates multi-source research with query pivoting. |
+| Initiative Engine | Proposes autonomous actions within safe-to-execute thresholds. |
+
+### Extended Plugins (8)
+
+Domain-specific intelligence:
+
+| Component | Purpose |
+| --------- | ------- |
+| Relationship Intelligence | 8 weighted signals, 5 relationship tiers, anomaly detection |
+| Briefing System | Daily, tactical, weekly briefings from live data sources |
+| World Model | Entity graph (person, company, project, product, location) |
+| Health Tracker | Biomarker tracking, wearable integration, trend analysis |
+| Behavioral Profiler | 8 trait dimensions scored -1.0 to 1.0 |
+| Meeting Intelligence | Transcript ingestion, commitment extraction, follow-up tracking |
+| Email Integration | Draft lifecycle, allowlist-based outbound control |
+| Contact Sessions | Per-contact scoped sessions with tier-based permissions |
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Intelligence Layer                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │              Cognition Orchestrator                  │    │
+│  │  Plugin lifecycle | Event routing | Decision merge   │    │
+│  └────────────────────────┬────────────────────────────┘    │
+│                           │                                  │
+│  ┌────────────────────────┼────────────────────────────┐    │
+│  │                        ▼                             │    │
+│  │   ┌─────────┐  ┌─────────┐  ┌─────────┐            │    │
+│  │   │  Goal   │  │  Mind   │  │Predictive│            │    │
+│  │   │ Engine  │  │  Model  │  │ Engine  │            │    │
+│  │   └────┬────┘  └────┬────┘  └────┬────┘            │    │
+│  │        │            │            │                  │    │
+│  │        └────────────┼────────────┘                  │    │
+│  │                     ▼                               │    │
+│  │              ┌─────────────┐                        │    │
+│  │              │  Synthesis  │                        │    │
+│  │              │   Engine    │                        │    │
+│  │              └─────────────┘                        │    │
+│  │                                                      │    │
+│  │              Cognitive Plugins                       │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │               Intelligence Plugins                    │    │
+│  │                                                       │    │
+│  │   Tool Learner | Self-Reflector | Task Planner       │    │
+│  │   Preference Learner | Anomaly Detector              │    │
+│  │   Research Orchestrator | Initiative Engine          │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │                Extended Plugins                       │    │
+│  │                                                       │    │
+│  │   Relationships | Briefings | World Model | Health   │    │
+│  │   Profiler | Meetings | Email | Contacts             │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Event Flow
+
+1. **Input**: User message arrives
+2. **Perceive**: Memory Intelligence recalls relevant context
+3. **Predict**: Predictive Engine projects possible outcomes
+4. **Plan**: Goal Engine decomposes into tasks
+5. **Execute**: Task Planner routes to appropriate tools
+6. **Reflect**: Self-Reflector evaluates response quality
+7. **Learn**: Tool Learner and Preference Learner update models
+
+## Configuration
+
+Enable/disable individual plugins:
+
+```json
+{
+  "colony": {
+    "cognitive": {
+      "orchestrator": { "enabled": true },
+      "goals": { "enabled": true },
+      "predictions": { "enabled": true },
+      "metalearner": { "enabled": true },
+      "mindModel": { "enabled": true, "ethicalGuardrails": true },
+      "synthesis": { "enabled": true },
+      "continuousLearner": { "enabled": false },
+      "reasoning": { "enabled": true }
+    },
+    "intelligence": {
+      "toolLearner": { "enabled": true },
+      "selfReflector": { "enabled": true },
+      "preferenceLearner": { "enabled": true },
+      "anomalyDetector": { "enabled": true },
+      "taskPlanner": { "enabled": true },
+      "research": { "enabled": true },
+      "initiative": { "enabled": false }
+    }
+  }
+}
+```
+
+## Plugin Dependencies
+
+Some plugins depend on others:
+
+```
+Synthesis Engine
+    └── requires: Memory Intelligence, World Model
+
+Mind Model
+    └── requires: Preference Learner, Behavioral Profiler
+
+Initiative Engine
+    └── requires: Goal Engine, Anomaly Detector
+```
+
+The orchestrator resolves dependencies during initialization.
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Cognitive Plugins" icon="brain" href="/intelligence/cognitive-plugins">
+    8 higher-order reasoning components.
+  </Card>
+  <Card title="Model Router" icon="route" href="/intelligence/model-router">
+    Multi-tier model selection.
+  </Card>
+  <Card title="Memory Intelligence" icon="database" href="/memory/overview">
+    15 memory features.
+  </Card>
+  <Card title="Plugin System" icon="puzzle-piece" href="/architecture/plugins">
+    How plugins work.
+  </Card>
+</CardGroup>
