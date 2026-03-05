@@ -1,0 +1,70 @@
+---
+title: "Command Node"
+description: "The 5th mesh role for mobile and thin client devices"
+icon: "mobile"
+---
+
+## Overview
+
+Command Node is the 5th role in the Colony mesh, designed for mobile phones and lightweight devices. Unlike Queen, Regent, Drone, and Sentinel nodes, Command Nodes do not participate in gossip, UDP heartbeats, or leader election. They connect via WebSocket and REST only, keeping battery usage minimal.
+
+## Pairing
+
+Two methods to pair a Command Node:
+
+### QR Code (LAN)
+Best for devices on the same network. The Colony generates a QR code containing a signed pairing token (5-minute TTL). Scan it with ClawCommand to pair instantly.
+
+### Invite Token (Remote)
+For devices outside the local network. Generate a shareable code like `COLONY-A7X9-K2M4` (24-hour TTL). Enter it in ClawCommand to pair from anywhere.
+
+## Permissions
+
+Command Nodes use scope-based permissions:
+
+| Scope | Description |
+|-------|-------------|
+| `read:memory` | Query memories from the Colony |
+| `read:activity` | View activity feed and logs |
+| `read:loops` | View open tasks and loops |
+| `read:health` | View health integrations data |
+| `write:tasks` | Create tasks and reminders |
+| `write:approve` | Approve gated actions |
+| `admin:mesh` | View and manage mesh nodes |
+| `admin:colony` | Full colony administration |
+
+The owner node gets all scopes. Invited nodes get a configured subset.
+
+## Gated Actions
+
+When the Colony needs human approval (sending an email, executing a build, making a payment), it pushes a notification to all Command Nodes with `write:approve` scope. The first response wins. Every approval or denial is recorded with the responding `node_id` in the audit trail.
+
+## Offline Cache
+
+Command Nodes maintain a local encrypted cache of memories scoped to their permissions. When connectivity drops, the cache serves read requests locally. Nodes with write permissions can queue task creation offline. The queue drains automatically on reconnect.
+
+See [Memory Replication](/memory/replication) for cache sync details.
+
+## Communication
+
+| Protocol | Use |
+|----------|-----|
+| WebSocket | Real-time events, memory sync, push notifications |
+| REST | On-demand queries, pairing, token management |
+
+No UDP, no gossip, no Raft participation. Command Nodes are intentionally lightweight.
+
+## CLI Commands
+
+```bash
+clawcolony nodes list              # List all connected Command Nodes
+clawcolony invite create           # Generate invite token
+clawcolony pair --qr               # Display QR code for LAN pairing
+clawcolony node revoke <id>        # Revoke a Command Node
+clawcolony node update <id>        # Update node permissions
+```
+
+## Platform Support
+
+- **iOS 17+**: Swift/SwiftUI, Keychain for credentials, APNs for push
+- **Android 10+ (API 29)**: Kotlin + Jetpack Compose, Keystore, FCM for push

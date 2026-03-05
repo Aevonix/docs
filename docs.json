@@ -39,7 +39,8 @@
               "mesh/queen-regent-drone",
               "mesh/election",
               "mesh/certificates",
-              "mesh/gossip"
+              "mesh/gossip",
+              "mesh/command-node"
             ]
           },
           {
@@ -73,7 +74,8 @@
               "memory/overview",
               "memory/temporal-graph",
               "memory/fast-facts",
-              "memory/decay"
+              "memory/decay",
+              "memory/replication"
             ]
           },
           {

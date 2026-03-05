@@ -1,0 +1,92 @@
+---
+title: "Memory Replication"
+description: "Queen-Regent sync, split-brain resolution, and Command Node offline cache"
+icon: "arrows-rotate"
+---
+
+## Overview
+
+Colony memory replication keeps the Queen and Regent nodes synchronized in near-real-time. When the Queen fails, the Regent promotes with a complete, up-to-date memory database. No data loss under normal operation.
+
+## Architecture
+
+Memory replication uses **application-level replication** rather than SQLite WAL shipping. Every memory write on the Queen fires a replication event through the event bus. The Regent receives these events and applies them to its local SQLite copy.
+
+```
+Queen (Memory DB) --TCP/TLS--> Regent (Replica)
+       |
+       +--WebSocket--> Command Nodes (Scoped Cache)
+```
+
+## Hybrid Logical Clocks
+
+All replication events carry a Hybrid Logical Clock (HLC) timestamp. HLCs combine physical time with a logical counter, providing causal ordering without requiring clock synchronization between nodes.
+
+Every message sent increments the local HLC. Every message received merges the sender's HLC with the local clock, preserving the "happened-before" relationship across all events in the mesh.
+
+## Batched Streaming
+
+Events batch at 50ms intervals (configurable 10ms-500ms) with a maximum of 100 events per batch. This balances latency against network efficiency.
+
+**Backpressure**: If the Regent falls behind (3+ unacked batches), the Queen throttles its send rate. Events queue locally and drain when the Regent catches up.
+
+**Retry**: Failed batches retry with exponential backoff (100ms base, 2x multiplier, 30s cap, 5 attempts max).
+
+## Catch-Up Protocol
+
+When a Regent reconnects after being offline:
+
+1. Regent sends its last known sequence number
+2. Queen checks if the gap is within the replication log window
+3. **Small gap**: Queen streams missed events from the log
+4. **Large gap**: Queen sends a full snapshot (chunked for large databases)
+
+Catch-up runs at burst speed (up to 10,000 events/sec) until the Regent is current, then switches to normal streaming.
+
+## Split-Brain Resolution
+
+If a network partition creates two Queens, both may accept memory writes. When the partition heals:
+
+1. **Detection**: Epoch mismatch during the HELLO handshake reveals the split
+2. **Comparison**: Each conflicting entity is compared using HLC timestamps
+3. **Merge**: Last-writer-wins at entity granularity. The memory with the later HLC timestamp survives.
+4. **Audit**: Every merge decision is recorded in the `split_brain_audit` table
+
+Identity memories and credentials are never involved in cross-node merges.
+
+## Command Node Offline Cache
+
+Command Nodes (mobile devices) maintain a scoped local cache:
+
+- **Scope filtering**: Only memories matching the node's permission scopes are cached
+- **Recency weighting**: Recent and frequently accessed memories are prioritized
+- **Storage budget**: Configurable cap (default 50MB) with LRU + importance-weighted eviction
+- **Encryption**: SQLCipher with keys stored in iOS Keychain or Android Keystore
+- **Offline writes**: Nodes with `write:tasks` permission can queue writes offline. The queue drains on reconnect with LWW conflict resolution.
+
+## Performance Targets
+
+| Metric | Target |
+|--------|--------|
+| Queen to Regent latency (p50) | under 50ms |
+| Queen to Regent latency (p99) | under 200ms |
+| Sustained throughput | 1,000 events/sec |
+| Catch-up burst | 10,000 events/sec |
+| Memory overhead (Queen) | under 20MB |
+| Memory overhead (Regent) | under 25MB |
+| CPU usage (normal load) | under 5% of one core |
+| Network (sustained) | under 100KB/sec |
+
+## SQL Tables
+
+The replication system adds 9 tables to colony.db:
+
+- `replication_log`: All replication events with sequence numbers
+- `replication_state`: Sync position per Regent and Command Node
+- `hlc_state`: Persisted local HLC clock
+- `split_brain_audit`: Merge decision records
+- `split_brain_conflicts`: Individual conflicting memories during merge
+- `command_cache_meta`: What each Command Node has cached
+- `command_cache_sync_state`: Sync position per Command Node
+- `command_write_queue`: Offline writes from Command Nodes
+- `replication_snapshots`: Metadata about snapshot transfers
