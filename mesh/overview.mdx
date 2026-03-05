@@ -95,7 +95,7 @@ Missing 3 consecutive heartbeats triggers the suspect state.
 
 | Scenario | Recovery Time | Data Loss |
 | -------- | ------------- | --------- |
-| Queen fails, Regent exists | <30 seconds | None |
+| Queen fails, Regent exists | under 30 seconds | None |
 | Queen fails, no Regent | 1-5 minutes (election) | Uncommitted mempool |
 | All signing nodes fail | Manual recovery | None (chain persists) |
 
